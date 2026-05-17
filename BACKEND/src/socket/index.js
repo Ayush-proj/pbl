@@ -244,6 +244,67 @@ function initSocket(server) {
       });
     });
 
+    // Send message via socket (real-time)
+    socket.on('chat:send-message', async (data) => {
+      const { conversationId, content } = data;
+      
+      try {
+        const { Message, Conversation } = require('../models/Message');
+        
+        const conversation = await Conversation.findById(conversationId);
+        if (!conversation) {
+          socket.emit('chat:error', { message: 'Conversation not found' });
+          return;
+        }
+
+        const message = await Message.create({
+          conversationId,
+          sender: userId,
+          content,
+          readBy: [userId]
+        });
+
+        const populatedMessage = await Message.findById(message._id).populate('sender', 'name profileImage');
+
+        // Update conversation last message
+        conversation.lastMessage = populatedMessage;
+        conversation.lastMessageAt = new Date();
+        if (conversation.unreadCount) {
+          conversation.unreadCount += 1;
+        } else {
+          conversation.unreadCount = 1;
+        }
+        await conversation.save();
+
+        // Emit to all users in conversation room (including sender)
+        io.to(`chat:${conversationId}`).emit('chat:new-message', {
+          message: {
+            _id: populatedMessage._id,
+            conversationId,
+            sender: populatedMessage.sender?._id || userId,
+            senderName: populatedMessage.sender?.name || 'User',
+            senderType: userType,
+            content: populatedMessage.content,
+            createdAt: populatedMessage.createdAt
+          }
+        });
+
+        // Also notify participants via their user room
+        conversation.participants.forEach(participantId => {
+          if (participantId.toString() !== userId.toString()) {
+            emitToUser(participantId.toString(), 'chat:notification', {
+              conversationId,
+              senderName: populatedMessage.sender?.name || 'User',
+              content: content.substring(0, 50) + (content.length > 50 ? '...' : '')
+            });
+          }
+        });
+      } catch (error) {
+        console.error('Chat message error:', error);
+        socket.emit('chat:error', { message: 'Failed to send message' });
+      }
+    });
+
     // Mark messages as read
     socket.on('chat:mark-read', (conversationId) => {
       socket.to(`chat:${conversationId}`).emit('chat:messages-read', {

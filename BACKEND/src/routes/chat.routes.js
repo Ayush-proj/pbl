@@ -96,7 +96,7 @@ router.post('/message', auth, async (req, res) => {
     if (io && conversation) {
       conversation.participants.forEach(participantId => {
         if (participantId.toString() !== userId.toString()) {
-          io.to(`user:${participantId}`).emit('newMessage', {
+          io.to(`user:${participantId}`).emit('chat:new-message', {
             conversationId,
             message
           });

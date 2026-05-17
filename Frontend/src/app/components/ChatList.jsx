@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { 
   MessageCircle, 
@@ -16,13 +16,19 @@ import { getConversations, getUnreadCount, markMessagesRead } from '../services/
 import { useChat } from '../hooks/useChat';
 import useAuthStore from '../store/authStore';
 
+let socketRef = null;
+
 export function ChatList({ onSelectConversation, onClose }) {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
   const { user } = useAuthStore();
-  const { connected, newMessage } = useChat(user?._id, user?.role);
+  const { connected, newMessage, socket } = useChat(user?._id, user?.role);
+
+  useEffect(() => {
+    socketRef = socket;
+  }, [socket]);
 
   useEffect(() => {
     loadConversations();
@@ -30,19 +36,34 @@ export function ChatList({ onSelectConversation, onClose }) {
   }, []);
 
   useEffect(() => {
-    if (newMessage) {
+    if (!socketRef) return;
+
+    const handleNewMessage = (message) => {
       setConversations(prev => {
-        const exists = prev.find(c => c._id === newMessage.conversationId);
+        const exists = prev.find(c => c._id === message.conversationId);
         if (exists) {
-          return prev.map(c => c._id === newMessage.conversationId 
-            ? { ...c, lastMessage: newMessage, lastMessageAt: new Date() }
+          return prev.map(c => c._id === message.conversationId 
+            ? { ...c, lastMessage: message, lastMessageAt: new Date() }
             : c
           ).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
         }
         return prev;
       });
-    }
-  }, [newMessage]);
+    };
+
+    const handleNotification = (data) => {
+      loadUnreadCount();
+      loadConversations();
+    };
+
+    socketRef.on('chat:new-message', handleNewMessage);
+    socketRef.on('chat:notification', handleNotification);
+
+    return () => {
+      socketRef?.off('chat:new-message', handleNewMessage);
+      socketRef?.off('chat:notification', handleNotification);
+    };
+  }, []);
 
   const loadConversations = async () => {
     try {

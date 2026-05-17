@@ -17,7 +17,7 @@ import {
     Info,
     ShieldCheck
 } from 'lucide-react';
-import { getMentorProfile } from '../services/api';
+import { getMentorProfile, uploadMentorProfileImage } from '../services/api';
 import useAuthStore from '../store/authStore';
 
 const DAY_OPTIONS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -72,11 +72,15 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
 
     useEffect(() => {
         if (isOwnProfile) {
+            if (storeMentorProfile && storeMentorProfile.name) {
+                populateForm(storeMentorProfile);
+                setLoading(false);
+                return;
+            }
             setLoading(true);
             getMentorProfile()
                 .then(res => populateForm(res.data.mentor))
                 .catch(() => {
-                    // Fallback: use auth store's mentorProfile (loaded during login)
                     if (storeMentorProfile) {
                         populateForm(storeMentorProfile);
                     }
@@ -88,14 +92,28 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
         } else {
             setLoading(false);
         }
-    }, [isOwnProfile, mentor]);
+    }, [isOwnProfile, mentor, storeMentorProfile]);
 
-    const handleImageUpload = (e) => {
+    const handleImageUpload = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        
         const reader = new FileReader();
         reader.onloadend = () => setForm(prev => ({ ...prev, profileImage: reader.result }));
         reader.readAsDataURL(file);
+        
+        const formData = new FormData();
+        formData.append('profileImage', file);
+        
+        try {
+            const res = await uploadMentorProfileImage(formData);
+            if (res.data.profileImage) {
+                setForm(prev => ({ ...prev, profileImage: res.data.profileImage }));
+                useAuthStore.getState().setMentorProfile({ ...useAuthStore.getState().mentorProfile, profileImage: res.data.profileImage });
+            }
+        } catch (err) {
+            toast.error('Failed to upload image');
+        }
     };
 
     const addSkill = () => {

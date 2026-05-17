@@ -287,7 +287,6 @@ exports.getMyBookings = async (req, res) => {
     let bookings;
 
     if (role === "candidate") {
-      // Find candidate's Candidate doc
       const Candidate = require("../models/candidate");
       const candidate = await Candidate.findOne({ userId });
       if (!candidate) {
@@ -297,7 +296,7 @@ exports.getMyBookings = async (req, res) => {
       bookings = await Booking.find({ candidateId: candidate._id })
         .populate({
           path: "mentorId",
-          populate: { path: "userId", select: "name email" }
+          populate: { path: "userId", select: "name email profileImage" }
         })
         .sort({ createdAt: -1 });
     } else if (role === "mentor") {
@@ -309,15 +308,33 @@ exports.getMyBookings = async (req, res) => {
       bookings = await Booking.find({ mentorId: mentor._id })
         .populate({
           path: "candidateId",
-          populate: { path: "userId", select: "name email" }
+          populate: { path: "userId", select: "name email profileImage" }
         })
         .sort({ createdAt: -1 });
     } else {
       return res.status(403).json({ success: false });
     }
 
-    res.json({ success: true, bookings });
+    const bookingsWithReviews = await Promise.all(bookings.map(async (booking) => {
+      const bookingObj = booking.toObject();
+      
+      try {
+        const Review = require("../models/review");
+        const review = await Review.findOne({ bookingId: bookingObj._id });
+        if (review) {
+          bookingObj.rating = review.rating;
+          bookingObj.comment = review.comment;
+        }
+      } catch (e) {
+        // Skip review lookup if error
+      }
+      
+      return bookingObj;
+    }));
+
+    res.json({ success: true, bookings: bookingsWithReviews });
   } catch (err) {
+    console.error('getMyBookings error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

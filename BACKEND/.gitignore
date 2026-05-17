@@ -1,1 +1,6 @@
 node_modules
+
+# Uploads (keep gitkeep, ignore actual files)
+uploads/*
+!uploads/.gitkeep
+!uploads/profile/.gitkeep

@@ -1,16 +1,24 @@
 const express = require("express");
 const router = express.Router();
 
-const { createMentorProfile, getMentorProfile, searchMentors, getWallet, getEarnings, getTransactions, getPopularSkills } = require("../controllers/mentorController");
+const { createMentorProfile, getMentorProfile, searchMentors, getWallet, getEarnings, getTransactions, getPopularSkills, uploadMentorProfileImage } = require("../controllers/mentorController");
 const { protect, mentorOnly } = require("../middlewares/authMiddleware");
 const { getMentorTest, submitMentorTest } = require("../controllers/mentorTestController");
 const { getAvailableSlots } = require("../controllers/mentorSlots.controller");
+const upload = require("../middlewares/upload.middleware");
 
 router.post(
   "/profile",
   protect,
   mentorOnly,
   createMentorProfile
+);
+router.post(
+  "/profile/image",
+  protect,
+  mentorOnly,
+  upload.single('profileImage'),
+  uploadMentorProfileImage
 );
 router.get("/profile", protect, mentorOnly, getMentorProfile);
 router.get("/search", searchMentors);

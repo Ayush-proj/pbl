@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { searchMentors as searchMentorsAPI, getMyBookings, cancelBooking as cancelBookingAPI, joinSession as joinSessionAPI, createRazorpayOrder, verifyRazorpayPayment, getNotificationsAPI, submitTicketAPI, getMyTicketsAPI } from '../services/api';
+import { searchMentors as searchMentorsAPI, getMyBookings, cancelBooking as cancelBookingAPI, joinSession as joinSessionAPI, createRazorpayOrder, verifyRazorpayPayment, getNotificationsAPI, submitTicketAPI, getMyTicketsAPI, getCandidateProfile } from '../services/api';
 import { useBookingNotifications } from '../hooks/useBookingNotifications';
 import useAuthStore from '../store/authStore';
 import { motion, AnimatePresence } from 'motion/react';
@@ -30,7 +30,7 @@ import {
     TrendingUp,
     Users,
     Award,
-    Zap
+    Zap,
 } from 'lucide-react';
 import { MentorCard } from './MentorShowcase';
 import { getPopularSkills } from '../services/api';
@@ -55,7 +55,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 
 export function CandidateDashboard({ initialTab = 'upcoming', onMentorClick, onBookDemo, onProfileClick, onLogout, onExploreFullPage, onSettings }) {
-    const { user: authUser, candidateProfile, logout } = useAuthStore();
+    const { user: authUser, candidateProfile, logout, setCandidateProfile } = useAuthStore();
     const [activeTab, setActiveTab] = useState(initialTab);
     const [searchQuery, setSearchQuery] = useState('');
     const [apiMentors, setApiMentors] = useState([]);
@@ -72,7 +72,18 @@ export function CandidateDashboard({ initialTab = 'upcoming', onMentorClick, onB
     const { theme, toggleTheme } = useTheme();
 
     useEffect(() => {
-        fetchBookings();
+        const fetchAll = async () => {
+            await fetchBookings();
+            try {
+                const profileRes = await getCandidateProfile();
+                if (profileRes.data?.candidate) {
+                    setCandidateProfile(profileRes.data.candidate);
+                }
+            } catch (e) {
+                console.error('Failed to fetch candidate profile:', e);
+            }
+        };
+        fetchAll();
     }, []);
 
     useEffect(() => {
@@ -729,6 +740,10 @@ export function CandidateDashboard({ initialTab = 'upcoming', onMentorClick, onB
                         <div className="max-w-7xl mx-auto w-full p-6">
                             {renderHelpCenter()}
                         </div>
+                    ) : activeTab === 'mentors' ? (
+                        <div className="max-w-7xl mx-auto w-full p-6">
+                            {renderHelpCenter()}
+                        </div>
                     ) : (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start max-w-7xl mx-auto w-full p-6">
                         
@@ -935,9 +950,8 @@ export function CandidateDashboard({ initialTab = 'upcoming', onMentorClick, onB
                                 <TabsList><TabsTrigger value="upcoming">Upcoming</TabsTrigger><TabsTrigger value="completed">Completed</TabsTrigger><TabsTrigger value="cancelled">Cancelled</TabsTrigger></TabsList>
 
                             
-
                             <TabsContent value="upcoming" className="mt-6">
-                                <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 auto-rows-fr">
                                     {bookingsLoading ? (
                                         <div className="col-span-full py-12 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" /><p className="text-muted-foreground">Loading...</p></div>
                                     ) : filteredSessions.length > 0 ? (
@@ -951,7 +965,7 @@ export function CandidateDashboard({ initialTab = 'upcoming', onMentorClick, onB
                             </TabsContent>
 
                             <TabsContent value="completed" className="mt-6">
-                                <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 auto-rows-fr">
                                     {bookingsLoading ? (
                                         <div className="col-span-full py-12 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" /><p className="text-muted-foreground">Loading...</p></div>
                                     ) : filteredSessions.length > 0 ? (
@@ -965,7 +979,7 @@ export function CandidateDashboard({ initialTab = 'upcoming', onMentorClick, onB
                             </TabsContent>
 
                             <TabsContent value="cancelled" className="mt-6">
-                                <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 auto-rows-fr">
                                     {bookingsLoading ? (
                                         <div className="col-span-full py-12 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" /><p className="text-muted-foreground">Loading...</p></div>
                                     ) : filteredSessions.length > 0 ? (
@@ -1003,14 +1017,15 @@ function SessionCard({ booking, onMentorClick, onJoinSession, onCancel, onPaymen
 
     return (
         <motion.div whileHover={{ y: -4 }}>
-            <Card className="p-6 border-border hover:border-primary/30 transition-all">
-                <CardContent className="p-0">
+            <Card className="p-6 border-border hover:border-primary/30 transition-all h-full flex flex-col">
+                <CardContent className="p-0 flex flex-col flex-1">
                     <div className="flex items-start justify-between mb-4">
                         {mentorImage ? (
-                            <img src={mentorImage} alt={mentorName} className="w-12 h-12 rounded-xl object-cover" />
-                        ) : (
-                            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><span className="text-lg font-black text-primary">{mentorName.charAt(0)}</span></div>
-                        )}
+                            <img src={mentorImage} alt={mentorName} className="w-14 h-14 rounded-xl object-cover" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+                        ) : null}
+                        <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center shrink-0" style={{ display: mentorImage ? 'none' : 'flex' }}>
+                            <span className="text-lg font-black text-primary">{mentorName.charAt(0)}</span>
+                        </div>
                         <Badge variant="outline" className={`text-xs font-bold uppercase ${statusStyles[status] || statusStyles.pending}`}>{status}</Badge>
                     </div>
                     <div className="mb-4 cursor-pointer" onClick={onMentorClick}>
@@ -1021,16 +1036,30 @@ function SessionCard({ booking, onMentorClick, onJoinSession, onCancel, onPaymen
                             {booking.amount > 0 && <div className="flex items-center gap-2"><IndianRupee className="w-4 h-4" />₹{booking.amount}</div>}
                         </div>
                     </div>
-                    <div className="space-y-3">
-                        {(status === 'confirmed' || status === 'in-progress') && <Button className="w-full h-11" onClick={onJoinSession} disabled={isLoading}>{isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Video className="w-4 h-4 mr-2" />}Join</Button>}
-                        {status === 'awaiting-payment' && <Button className="w-full h-11 bg-gradient-to-r from-violet-500 to-blue-500" onClick={() => onPayment(booking)} disabled={isLoading}>{isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <IndianRupee className="w-4 h-4 mr-2" />}Pay ₹{booking.amount}</Button>}
-                        {status === 'completed' && <Button variant="outline" className="w-full h-11" onClick={onRateSession}><Star className="w-4 h-4 mr-2" />Rate</Button>}
-                        {['confirmed', 'pending'].includes(status) && (
-                            <div className="flex gap-3">
-                                {status === 'confirmed' && <Button className="flex-1 h-11" onClick={onJoinSession} disabled={isLoading}><Video className="w-4 h-4 mr-2" />Join</Button>}
-                                {status === 'pending' && <div className="flex-1 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 flex items-center justify-center font-bold">Waiting</div>}
-                                <Button variant="outline" size="icon" className="h-11 w-11" onClick={onCancel} disabled={isLoading}><XCircle className="w-5 h-5 text-rose-500" /></Button>
+                    <div className="mt-auto pt-4">
+                        {status === 'pending' && (
+                            <div className="flex gap-2">
+                                <div className="flex-1 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 flex items-center justify-center font-bold text-sm">Waiting</div>
+                                <Button variant="outline" size="icon" className="h-11 w-11 shrink-0" onClick={onCancel} disabled={isLoading}><XCircle className="w-5 h-5 text-rose-500" /></Button>
                             </div>
+                        )}
+                        {status === 'confirmed' && (
+                            <div className="flex gap-2">
+                                <Button className="flex-1 h-11" onClick={onJoinSession} disabled={isLoading}><Video className="w-4 h-4 mr-2" />Join</Button>
+                                <Button variant="outline" size="icon" className="h-11 w-11 shrink-0" onClick={onCancel} disabled={isLoading}><XCircle className="w-5 h-5 text-rose-500" /></Button>
+                            </div>
+                        )}
+                        {status === 'in-progress' && (
+                            <Button className="w-full h-11 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600" onClick={onJoinSession} disabled={isLoading}><Video className="w-4 h-4 mr-2" />Join Now</Button>
+                        )}
+                        {status === 'awaiting-payment' && (
+                            <Button className="w-full h-11 bg-gradient-to-r from-violet-500 to-blue-500 hover:from-violet-600 hover:to-blue-600" onClick={() => onPayment(booking)} disabled={isLoading}><IndianRupee className="w-4 h-4 mr-2" />Pay ₹{booking.amount}</Button>
+                        )}
+                        {status === 'completed' && (
+                            <Button variant="outline" className="w-full h-11" onClick={onRateSession}><Star className="w-4 h-4 mr-2" />Rate Session</Button>
+                        )}
+                        {status === 'cancelled' && (
+                            <div className="h-11 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 flex items-center justify-center font-bold text-sm">Cancelled</div>
                         )}
                     </div>
                 </CardContent>

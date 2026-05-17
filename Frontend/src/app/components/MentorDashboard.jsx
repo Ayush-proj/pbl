@@ -23,7 +23,7 @@ import {
     Bell,
     Sun,
     Moon,
-    Settings,
+Settings,
     LogOut,
     Users,
     HelpCircle,
@@ -39,6 +39,7 @@ import {
     getMentorWallet,
     getMentorEarnings,
     getMentorTransactions,
+    getMentorProfile,
     updateBookingStatus as updateBookingStatusAPI,
     joinSession as joinSessionAPI,
     getNotificationsAPI,
@@ -55,7 +56,7 @@ import { useTheme } from '../context/ThemeContext';
 import { ChatButton } from './Chat';
 
 export function MentorDashboard({ onStudentClick, onSettings, onLogout }) {
-    const { user: authUser, mentorProfile, logout } = useAuthStore();
+    const { user: authUser, mentorProfile, logout, setMentorProfile } = useAuthStore();
     const [activeTab, setActiveTab] = useState('upcoming');
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -98,9 +99,10 @@ export function MentorDashboard({ onStudentClick, onSettings, onLogout }) {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [bookingsRes, walletRes] = await Promise.all([
+            const [bookingsRes, walletRes, profileRes] = await Promise.all([
                 getMyBookings(),
-                getMentorWallet()
+                getMentorWallet(),
+                getMentorProfile()
             ]);
             console.log('📋 Mentor fetched bookings:', bookingsRes.data.bookings?.length);
             bookingsRes.data.bookings?.forEach(b => {
@@ -108,6 +110,9 @@ export function MentorDashboard({ onStudentClick, onSettings, onLogout }) {
             });
             setBookings(bookingsRes.data.bookings || []);
             setWalletData(walletRes.data);
+            if (profileRes.data?.mentor) {
+                setMentorProfile(profileRes.data.mentor);
+            }
         } catch (err) {
             console.error('Failed to fetch dashboard data:', err);
             toast.error('Failed to load dashboard data');
@@ -892,7 +897,7 @@ export function MentorDashboard({ onStudentClick, onSettings, onLogout }) {
                         ) : activeTab === 'students' ? (
                             <StudentsTab bookings={bookings} />
                         ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 auto-rows-fr">
                                 {loading ? (
                                     <div className="col-span-full py-24 flex flex-col items-center text-center">
                                         <Loader2 className="w-12 h-12 text-primary animate-spin mb-6" />
@@ -1149,7 +1154,11 @@ function StudentsTab({ bookings }) {
     };
 
     const getFeedback = (booking) => {
-        return booking.rating || booking.review || null;
+        return booking.rating || booking.reviewId?.rating || null;
+    };
+
+    const getComment = (booking) => {
+        return booking.comment || booking.reviewId?.comment || '';
     };
 
     return (
@@ -1176,6 +1185,7 @@ function StudentsTab({ bookings }) {
                         const paidSessions = student.bookings.filter(b => getSessionType(b) === 'paid').length;
                         const latestBooking = student.bookings[0];
                         const feedback = getFeedback(latestBooking);
+                        const comment = getComment(latestBooking);
 
                         return (
                             <Card key={student.name} className="p-5 border-border hover:border-primary/30 transition-all">
@@ -1230,7 +1240,11 @@ function StudentsTab({ bookings }) {
                                             {feedback && (
                                                 <div className="mt-3 p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
                                                     <p className="text-xs font-bold text-amber-600 mb-1">Latest Feedback:</p>
-                                                    <p className="text-sm text-foreground italic">"{feedback}"</p>
+                                                    <div className="flex items-center gap-1 mb-1">
+                                                        <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                                                        <span className="text-sm font-bold text-amber-600">{feedback}/5</span>
+                                                    </div>
+                                                    {comment && <p className="text-sm text-foreground italic">"{comment}"</p>}
                                                 </div>
                                             )}
                                         </div>
@@ -1255,10 +1269,11 @@ function StudentsTab({ bookings }) {
 
 /* =========================
    STUDENT SESSION CARD
- ========================= */
+  ========================= */
 function StudentSessionCard({ booking, onStudentClick, onAccept, onReject, onJoin, isLoading, onChat }) {
     const candidateUser = booking.candidateId?.userId;
     const studentName = candidateUser?.name || 'Unknown Student';
+    const studentImage = candidateUser?.profileImage || booking.candidateId?.profileImage || '';
     const sessionDate = booking.date ? new Date(booking.date).toLocaleDateString('en-US', {
         month: 'short', day: 'numeric', year: 'numeric'
     }) : 'N/A';
@@ -1267,14 +1282,12 @@ function StudentSessionCard({ booking, onStudentClick, onAccept, onReject, onJoi
     const status = booking.status;
     const sessionType = booking.sessionType;
 
-    console.log('📊 StudentSessionCard - booking status:', status, 'bookingId:', booking._id);
-
     const getStatusStyle = (status) => {
         switch (status) {
             case 'pending': return 'bg-amber-500/10 text-amber-600 dark:text-amber-500 border-amber-500/20';
             case 'confirmed': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border-emerald-500/20';
             case 'awaiting-payment': return 'bg-blue-500/10 text-blue-600 dark:text-blue-500 border-blue-500/20';
-            case 'in-progress': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border-emerald-500/20 animate-pulse';
+            case 'in-progress': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border-emerald-500/20';
             case 'completed': return 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-500 border-zinc-500/20';
             case 'cancelled': return 'bg-rose-500/10 text-rose-600 dark:text-rose-500 border-rose-500/20';
             default: return 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-500 border-zinc-500/20';
@@ -1283,18 +1296,29 @@ function StudentSessionCard({ booking, onStudentClick, onAccept, onReject, onJoi
 
     return (
         <motion.div
-            whileHover={{ y: -8 }}
-            className="group relative p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] border border-border dark:border-white/10 bg-card dark:bg-white/5 shadow-lg dark:shadow-none overflow-hidden transition-all hover:shadow-xl hover:border-primary/20"
+            whileHover={{ y: -4 }}
+            className="group relative p-5 sm:p-6 rounded-2xl border border-border dark:border-white/10 bg-card dark:bg-white/5 shadow-lg dark:shadow-none overflow-hidden transition-all hover:shadow-xl hover:border-primary/20 h-full flex flex-col"
         >
-            <div className="flex items-start justify-between mb-5 sm:mb-8">
-                <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl overflow-hidden border-3 sm:border-4 border-background shadow-lg rotate-3 group-hover:rotate-0 transition-all bg-primary/10 flex items-center justify-center">
-                    <span className="text-xl sm:text-3xl font-black text-primary">{studentName.charAt(0)}</span>
+            <div className="flex items-start justify-between mb-4">
+                {studentImage ? (
+                    <img 
+                        src={studentImage} 
+                        alt={studentName} 
+                        className="w-14 h-14 rounded-xl object-cover border-2 border-border shadow-md"
+                        onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                    />
+                ) : null}
+                <div 
+                    style={{ display: studentImage ? 'none' : 'flex' }}
+                    className="w-14 h-14 rounded-xl bg-primary/10 items-center justify-center shrink-0 border-2 border-border shadow-md"
+                >
+                    <span className="text-xl font-black text-primary">{studentName.charAt(0)}</span>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                    <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${getStatusStyle(status)}`}>
+                    <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getStatusStyle(status)}`}>
                         {status === 'awaiting-payment' ? 'Awaiting Pay' : status}
                     </div>
-                    <div className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider ${sessionType === 'demo'
+                    <div className={`px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider ${sessionType === 'demo'
                         ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
                         : 'bg-violet-500/10 text-violet-500 border border-violet-500/20'
                         }`}>
@@ -1303,79 +1327,69 @@ function StudentSessionCard({ booking, onStudentClick, onAccept, onReject, onJoi
                 </div>
             </div>
 
-            <div className="mb-5 sm:mb-8 cursor-pointer" onClick={onStudentClick}>
-                <h3 className="text-lg sm:text-2xl font-black mb-2 group-hover:text-primary transition-colors tracking-tighter">
+            <div className="mb-4 cursor-pointer flex-1" onClick={onStudentClick}>
+                <h3 className="text-xl font-bold mb-3 group-hover:text-primary transition-colors">
                     {studentName}
                 </h3>
-                <div className="space-y-3">
-                    <div className="flex items-center gap-3 text-muted-foreground font-bold text-sm">
-                        <Calendar className="w-5 h-5 text-primary" />
-                        {sessionDate}
-                    </div>
-                    <div className="flex items-center gap-3 text-muted-foreground font-bold text-sm">
-                        <Clock className="w-5 h-5 text-primary" />
-                        {sessionTime} ({duration} min)
-                    </div>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-primary" />{sessionDate}</div>
+                    <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-primary" />{sessionTime} ({duration} min)</div>
                     {booking.amount > 0 && (
-                        <div className="flex items-center gap-3 text-muted-foreground font-bold text-sm">
-                            <DollarSign className="w-5 h-5 text-emerald-500" />
-                            ₹{booking.amount} {booking.mentorEarning > 0 && <span className="text-emerald-500">(You earn ₹{booking.mentorEarning})</span>}
-                        </div>
-                    )}
-                    {booking.meetingLink && (
-                        <div className="flex items-center gap-3 text-muted-foreground font-bold text-sm">
-                            <Video className="w-5 h-5 text-blue-500" />
-                            <a href={booking.meetingLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline truncate">
-                                Meeting Link
-                            </a>
-                        </div>
+                        <div className="flex items-center gap-2"><DollarSign className="w-4 h-4 text-emerald-500" />₹{booking.amount}</div>
                     )}
                 </div>
             </div>
 
-            {/* Action buttons */}
-            <div className="flex gap-3">
+            <div className="flex gap-2 pt-4 mt-auto">
                 <button
                     onClick={onChat}
-                    className="w-14 h-14 rounded-2xl bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-all flex items-center justify-center"
+                    className="w-11 h-11 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-all flex items-center justify-center shrink-0"
                 >
-                    <MessageSquare className="w-5 h-5 text-primary" />
+                    <MessageSquare className="w-4 h-4 text-primary" />
                 </button>
                 {status === 'pending' && (
                     <>
                         <button
                             onClick={onAccept}
                             disabled={isLoading}
-                            className="flex-1 h-14 rounded-2xl bg-emerald-500 text-white font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:translate-y-[-2px] transition-all disabled:opacity-50"
+                            className="flex-1 h-11 rounded-xl bg-emerald-500 text-white font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-all disabled:opacity-50 text-sm"
                         >
-                            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                             Accept
                         </button>
                         <button
                             onClick={onReject}
                             disabled={isLoading}
-                            className="w-14 h-14 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all flex items-center justify-center disabled:opacity-50"
+                            className="w-11 h-11 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all flex items-center justify-center shrink-0 disabled:opacity-50"
                         >
-                            <XCircle className="w-6 h-6 text-rose-500" />
+                            <XCircle className="w-5 h-5 text-rose-500" />
                         </button>
                     </>
                 )}
-
-                {(status === 'confirmed' || status === 'in-progress') && (
+                {status === 'confirmed' && (
                     <button
                         onClick={onJoin}
                         disabled={isLoading}
-                        className="flex-1 h-14 rounded-2xl bg-primary text-primary-foreground font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-lg shadow-primary/20 hover:shadow-xl hover:translate-y-[-2px] transition-all disabled:opacity-50"
+                        className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-all disabled:opacity-50 text-sm"
                     >
-                        {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Video className="w-5 h-5" />}
-                        Join Meeting
+                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Video className="w-4 h-4" />}
+                        Join
                     </button>
                 )}
-
+                {status === 'in-progress' && (
+                    <button
+                        onClick={onJoin}
+                        disabled={isLoading}
+                        className="flex-1 h-11 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold flex items-center justify-center gap-2 hover:from-emerald-600 hover:to-green-600 transition-all disabled:opacity-50 text-sm"
+                    >
+                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Video className="w-4 h-4" />}
+                        Join Now
+                    </button>
+                )}
                 {status === 'awaiting-payment' && (
-                    <div className="flex-1 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-500 font-black uppercase tracking-widest flex items-center justify-center gap-3">
-                        <Clock className="w-5 h-5" />
-                        Waiting for Payment
+                    <div className="flex-1 h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 font-bold flex items-center justify-center gap-2 text-sm">
+                        <Clock className="w-4 h-4" />
+                        Waiting
                     </div>
                 )}
             </div>

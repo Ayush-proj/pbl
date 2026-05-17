@@ -1,6 +1,8 @@
 import { useEffect, useState, createContext, useContext, useCallback, useRef } from 'react';
 import { io } from 'socket.io-client';
 
+const SOCKET_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_TARGET || 'http://localhost:5000';
+
 const SocketContext = createContext();
 
 let socketInstance = null;
@@ -25,7 +27,7 @@ export function SocketProvider({ children, userId, userType }) {
         socketInstance.disconnect();
       }
 
-      socketInstance = io('http://localhost:5002', {
+      socketInstance = io(SOCKET_URL, {
         query: {
           userId: userId,
           userType: userType || 'candidate'
@@ -64,6 +66,10 @@ export function SocketProvider({ children, userId, userType }) {
       socketInstance.on('reconnect_failed', () => {
         console.error('Socket reconnect failed after max attempts');
       });
+
+      if (typeof window !== 'undefined') {
+        window.socket = socketInstance;
+      }
     };
 
     connectSocket();

@@ -89,7 +89,7 @@ exports.createReview = async (req, res, next) => {
     const review = await Review.create({
       bookingId,
       mentorId: booking.mentorId,
-      candidateId:req.user._id,
+      candidateId: candidate._id,
       rating,
       comment
     });

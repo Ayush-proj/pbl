@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { 
   MessageCircle, 
   X, 
@@ -16,9 +16,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
-import { getMessages, sendMessage, markMessagesRead } from '../services/api';
+import { getMessages, sendMessage, markMessagesRead, getOrCreateConversation } from '../services/api';
 import { useChat } from '../hooks/useChat';
 import useAuthStore from '../store/authStore';
+
+let socketRef = null;
 
 export function ChatButton({ participantId, participantName, participantImage, participantRole }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -26,18 +28,15 @@ export function ChatButton({ participantId, participantName, participantImage, p
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const [typing, setTyping] = useState(null);
   const messagesEndRef = useRef(null);
   const { user } = useAuthStore();
   
-  const { 
-    connected, 
-    newMessage, 
-    typing, 
-    joinConversation, 
-    leaveConversation, 
-    sendTyping,
-    markAsRead 
-  } = useChat(user?._id, user?.role);
+  const { connected, joinConversation, leaveConversation, sendTyping, markAsRead, socket } = useChat(user?._id, user?.role);
+
+  useEffect(() => {
+    socketRef = socket;
+  }, [socket]);
 
   useEffect(() => {
     if (isOpen && participantId) {
@@ -46,11 +45,37 @@ export function ChatButton({ participantId, participantName, participantImage, p
   }, [isOpen, participantId]);
 
   useEffect(() => {
-    if (newMessage && newMessage.conversationId === conversationId) {
-      setMessages(prev => [...prev, newMessage]);
+    if (!socketRef) return;
+
+    const handleNewMessage = (data) => {
+      setMessages(prev => {
+        const exists = prev.some(m => m._id === data.message._id);
+        if (exists) return prev;
+        return [...prev, data.message];
+      });
       scrollToBottom();
-    }
-  }, [newMessage, conversationId]);
+    };
+
+    const handleTyping = (data) => {
+      if (data.userId !== user?._id) {
+        setTyping(data.isTyping ? data.userId : null);
+      }
+    };
+
+    const handleMessagesRead = () => {
+      markAsRead(conversationId);
+    };
+
+    socketRef.on('chat:new-message', handleNewMessage);
+    socketRef.on('chat:user-typing', handleTyping);
+    socketRef.on('chat:messages-read', handleMessagesRead);
+
+    return () => {
+      socketRef?.off('chat:new-message', handleNewMessage);
+      socketRef?.off('chat:user-typing', handleTyping);
+      socketRef?.off('chat:messages-read', handleMessagesRead);
+    };
+  }, [conversationId, user?._id, markAsRead]);
 
   useEffect(() => {
     if (conversationId) {
@@ -62,12 +87,12 @@ export function ChatButton({ participantId, participantName, participantImage, p
   const loadMessages = async () => {
     try {
       setLoading(true);
-      const res = await getMessages(participantId);
-      if (res.data && res.data.length > 0) {
-        setConversationId(res.data[0].conversationId);
-        setMessages(res.data.reverse());
+      const res = await getOrCreateConversation(participantId);
+      if (res.data?._id) {
+        setConversationId(res.data._id);
+        const messagesRes = await getMessages(res.data._id);
+        setMessages(messagesRes.data?.reverse() || []);
         scrollToBottom();
-        markAsRead(res.data[0].conversationId);
       }
     } catch (err) {
       console.error('Failed to load messages:', err);
@@ -81,18 +106,40 @@ export function ChatButton({ participantId, participantName, participantImage, p
   };
 
   const handleSend = async () => {
-    if (!inputValue.trim() || !conversationId) return;
+    if (!inputValue.trim()) return;
     
-    try {
-      const res = await sendMessage({
-        conversationId,
-        content: inputValue.trim()
-      });
-      setMessages(prev => [...prev, res.data]);
+    const tempMessage = {
+      _id: `temp-${Date.now()}`,
+      conversationId,
+      sender: user?._id,
+      senderType: user?.role,
+      content: inputValue.trim(),
+      createdAt: new Date().toISOString()
+    };
+    
+    if (conversationId) {
+      socketRef.current?.emit('chat:send-message', { conversationId, content: inputValue.trim() });
+      setMessages(prev => [...prev, tempMessage]);
       setInputValue('');
       scrollToBottom();
-    } catch (err) {
-      console.error('Failed to send message:', err);
+    } else {
+      try {
+        const res = await sendMessage({
+          participantId,
+          content: inputValue.trim()
+        });
+        if (res.data?.conversationId) {
+          setConversationId(res.data.conversationId);
+          socketRef.current?.emit('chat:join-conversation', res.data.conversationId);
+          setMessages(prev => [...prev, res.data]);
+        } else {
+          setMessages(prev => [...prev, tempMessage]);
+        }
+        setInputValue('');
+        scrollToBottom();
+      } catch (err) {
+        console.error('Failed to send message:', err);
+      }
     }
   };
 
@@ -197,7 +244,7 @@ export function ChatButton({ participantId, participantName, participantImage, p
           })
         )}
         
-        {typing && typing.userId !== user?._id && (
+        {typing && typing !== user?._id && (
           <div className="flex justify-start">
             <div className="bg-muted px-4 py-2 rounded-2xl rounded-bl-md">
               <div className="flex gap-1">

@@ -38,6 +38,10 @@ const ConversationSchema = new mongoose.Schema({
   lastMessageAt: {
     type: Date,
     default: Date.now
+  },
+  unreadCount: {
+    type: Number,
+    default: 0
   }
 }, { timestamps: true });
 

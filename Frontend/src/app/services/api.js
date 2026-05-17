@@ -43,6 +43,9 @@ export const getNotificationsAPI = () => API.get('/auth/notifications');
 
 // ============ MENTOR ============
 export const createMentorProfile = (data) => API.post('/mentor/profile', data);
+export const uploadMentorProfileImage = (formData) => API.post('/mentor/profile/image', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
 export const getMentorProfile = () => API.get('/mentor/profile');
 export const searchMentors = (params) => API.get('/mentor/search', { params });
 export const getMentorSlots = (mentorId, params) => API.get(`/mentor/${mentorId}/slots`, { params });
@@ -55,6 +58,9 @@ export const getPopularSkills = () => API.get('/mentor/skills/popular');
 
 // ============ CANDIDATE ============
 export const createCandidateProfile = (data) => API.post('/candidate/profile', data);
+export const uploadCandidateProfileImage = (formData) => API.post('/candidate/profile/image', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
 export const getCandidateProfile = () => API.get('/candidate/profile');
 
 // ============ BOOKING ============

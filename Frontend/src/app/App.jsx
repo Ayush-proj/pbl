@@ -26,6 +26,7 @@ import { BookingModal } from './components/BookingModal';
 
 import { AdminLogin } from './components/admin/AdminLogin';
 import { AdminDashboard } from './components/admin/AdminDashboard';
+import { MessagesPage } from './components/MessagesPage';
 
 import { VerificationEntry } from './components/VerificationEntry';
 import { VerificationTest } from './components/VerificationTest';
@@ -51,6 +52,7 @@ export default function App() {
       if (hash === '#/admin/login') return 'admin-login';
       return isAdminLoggedIn() ? 'admin-dashboard' : 'admin-login';
     }
+    if (hash === '#/messages') return 'messages';
     if (hash === '#/about') return 'about';
     if (hash === '#/contact') return 'contact';
     return 'home';
@@ -85,6 +87,8 @@ export default function App() {
             window.location.hash = '#/admin/login';
           }
         }
+      } else if (hash === '#/messages') {
+        setCurrentView('messages');
       } else if (hash === '#/about') {
         setCurrentView('about');
       } else if (hash === '#/contact') {
@@ -109,6 +113,8 @@ export default function App() {
       window.location.hash = '#/about';
     } else if (currentView === 'contact') {
       window.location.hash = '#/contact';
+    } else if (currentView === 'messages') {
+      window.location.hash = '#/messages';
     } else if (currentView === 'admin-login') {
       window.location.hash = '#/admin/login';
     } else if (currentView === 'admin-dashboard') {
@@ -136,7 +142,6 @@ export default function App() {
   };
 
   const handleProfileUpdate = async (updatedProfile) => {
-    // Optimistic: immediately update local store for responsiveness
     const currentUser = useAuthStore.getState().user;
     const mergedUser = {
       ...currentUser,
@@ -164,10 +169,9 @@ export default function App() {
       });
 
       const savedProfile = response.data.mentor;
-      useAuthStore.getState().setMentorProfile({ ...optimisticProfile, ...savedProfile });
-      setSelectedMentor({ ...optimisticProfile, ...savedProfile });
+      useAuthStore.getState().setMentorProfile(savedProfile);
+      setSelectedMentor(savedProfile);
     } catch (error) {
-      // Local state is already updated optimistically, just warn
       console.warn('API save failed, using local data:', error.message);
     }
   };
@@ -406,6 +410,8 @@ export default function App() {
             <About />
           ) : currentView === 'contact' ? (
             <Contact />
+          ) : currentView === 'messages' ? (
+            <MessagesPage onBack={() => setCurrentView(currentUser?.role === 'mentor' ? 'dashboard' : 'home')} />
           ) : currentView === 'mentor-profile' ? (
             <MentorProfile
               mentor={selectedMentor}

@@ -31,7 +31,7 @@ export function useChat(userId, userType) {
       setConnected(false);
     });
 
-    socketRef.current.on('newMessage', (data) => {
+    socketRef.current.on('chat:new-message', (data) => {
       setNewMessage(data.message);
       setMessages(prev => [...prev, data.message]);
     });
@@ -45,6 +45,10 @@ export function useChat(userId, userType) {
         ...m,
         readBy: [...(m.readBy || []), data.userId]
       })));
+    });
+
+    socketRef.current.on('chat:notification', (data) => {
+      setNewMessage({ conversationId: data.conversationId, ...data });
     });
 
     return () => {

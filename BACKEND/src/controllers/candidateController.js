@@ -62,3 +62,33 @@ exports.getCandidateProfile = async (req, res, next) => {
     next(error);
   }
 };
+
+// Upload candidate profile image
+exports.uploadCandidateProfileImage = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No file uploaded" });
+    }
+
+    const fileUrl = `/uploads/profile/${req.file.filename}`;
+    
+    const candidate = await Candidate.findOneAndUpdate(
+      { userId: req.user._id },
+      { profileImage: fileUrl },
+      { new: true }
+    );
+
+    if (!candidate) {
+      return res.status(404).json({ success: false, message: "Candidate profile not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Profile image uploaded",
+      profileImage: fileUrl,
+      candidate
+    });
+  } catch (error) {
+    next(error);
+  }
+};

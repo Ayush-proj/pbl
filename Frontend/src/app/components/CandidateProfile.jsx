@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import useAuthStore from '../store/authStore';
-import { getCandidateProfile, createCandidateProfile } from '../services/api';
+import { getCandidateProfile, createCandidateProfile, uploadCandidateProfileImage } from '../services/api';
 import { toast } from 'sonner';
 import {
     User,
@@ -38,8 +38,28 @@ export function CandidateProfile({ onBack }) {
     const [newInterest, setNewInterest] = useState('');
 
     useEffect(() => {
-        getCandidateProfile()
-            .then(res => {
+        const loadProfile = async () => {
+            if (storeCandidateProfile && (storeCandidateProfile.name || storeCandidateProfile.interests?.length)) {
+                setForm({
+                    name: storeCandidateProfile.name || storeCandidateProfile.userId?.name || authUser?.name || '',
+                    email: storeCandidateProfile.email || storeCandidateProfile.userId?.email || authUser?.email || '',
+                    profileImage: storeCandidateProfile.profileImage || '',
+                    interests: storeCandidateProfile.interests || [],
+                    goals: storeCandidateProfile.goals || '',
+                    education: storeCandidateProfile.education || '',
+                    experienceLevel: storeCandidateProfile.experienceLevel || 'beginner'
+                });
+                if (storeCandidateProfile.interests?.length || storeCandidateProfile.goals || storeCandidateProfile.education) {
+                    setViewMode(true);
+                    setSaved(true);
+                }
+                setLoading(false);
+                return;
+            }
+
+            setLoading(true);
+            try {
+                const res = await getCandidateProfile();
                 const p = res.data.candidate;
                 const loaded = {
                     name: p.userId?.name || authUser?.name || '',
@@ -56,34 +76,35 @@ export function CandidateProfile({ onBack }) {
                     setViewMode(true);
                     setSaved(true);
                 }
-            })
-            .catch(() => {
-                // Fallback: use Zustand store's candidateProfile (loaded during login)
-                if (storeCandidateProfile) {
-                    setForm({
-                        name: storeCandidateProfile.name || storeCandidateProfile.userId?.name || authUser?.name || '',
-                        email: storeCandidateProfile.email || storeCandidateProfile.userId?.email || authUser?.email || '',
-                        profileImage: storeCandidateProfile.profileImage || '',
-                        interests: storeCandidateProfile.interests || [],
-                        goals: storeCandidateProfile.goals || '',
-                        education: storeCandidateProfile.education || '',
-                        experienceLevel: storeCandidateProfile.experienceLevel || 'beginner'
-                    });
-                    if (storeCandidateProfile.interests?.length || storeCandidateProfile.goals || storeCandidateProfile.education) {
-                        setViewMode(true);
-                        setSaved(true);
-                    }
-                }
-            })
-            .finally(() => setLoading(false));
+            } catch {
+                // Silent fail - keep empty form
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadProfile();
     }, []);
 
-    const handleImageUpload = (e) => {
+    const handleImageUpload = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        
         const reader = new FileReader();
         reader.onloadend = () => setForm(prev => ({ ...prev, profileImage: reader.result }));
         reader.readAsDataURL(file);
+        
+        const formData = new FormData();
+        formData.append('profileImage', file);
+        
+        try {
+            const res = await uploadCandidateProfileImage(formData);
+            if (res.data.profileImage) {
+                setForm(prev => ({ ...prev, profileImage: res.data.profileImage }));
+                useAuthStore.getState().setCandidateProfile({ ...useAuthStore.getState().candidateProfile, profileImage: res.data.profileImage });
+            }
+        } catch (err) {
+            toast.error('Failed to upload image');
+        }
     };
 
     const addInterest = () => {

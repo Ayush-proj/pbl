@@ -3,16 +3,6 @@ const generateMentorTest = require("../services/geminiTest.service");
 const { MAX_TEST_ATTEMPTS, COOLDOWN_HOURS } = require("../config/constants");
 const MentorTestSession = require("../models/MentorTestSession");
 
-const fallbackTest = {
-  mcq: [
-    { id: 'q1', question: "What is a closure in JavaScript?", options: ["A function with access to its outer scope", "A closed function", "A loop construct", "A data type"], correctIndex: 0 },
-    { id: 'q2', question: "What does REST stand for?", options: ["Representational State Transfer", "Remote State Transfer", "Representational Server Transfer", "Remote Server Transfer"], correctIndex: 0 },
-    { id: 'q3', question: "Which of the following is a NoSQL database?", options: ["MongoDB", "MySQL", "PostgreSQL", "SQLite"], correctIndex: 0 },
-    { id: 'q4', question: "What is the purpose of Git?", options: ["Version control", "Package management", "Code compilation", "Database management"], correctIndex: 0 },
-    { id: 'q5', question: "What is React?", options: ["A UI library", "A database", "A programming language", "An operating system"], correctIndex: 0 },
-  ]
-};
-
 exports.getMentorTest = async (req, res, next) => {
   try {
     const mentor = await Mentor.findOne({ userId: req.user._id });
@@ -52,11 +42,23 @@ exports.getMentorTest = async (req, res, next) => {
     }
 
     let test;
+    let usedFallback = false;
+    
     try {
-      test = await generateMentorTest(mentor.skills);
+      test = await generateMentorTest({
+        skills: mentor.skills,
+        title: mentor.title,
+        bio: mentor.bio
+      });
+      usedFallback = test.isFallback || false;
     } catch (geminiErr) {
-      console.warn("Gemini test generation failed, using fallback:", geminiErr.message);
-      test = fallbackTest;
+      console.warn("Gemini test generation failed:", geminiErr.message);
+      test = await generateMentorTest({
+        skills: mentor.skills,
+        title: mentor.title,
+        bio: mentor.bio
+      });
+      usedFallback = true;
     }
 
     await MentorTestSession.findOneAndUpdate(
@@ -71,7 +73,9 @@ exports.getMentorTest = async (req, res, next) => {
       success: true,
       test: {
         mcq: safeMCQ,
-        timeLimit: 600
+        timeLimit: 600,
+        skills: mentor.skills,
+        usedFallback
       }
     });
   } catch (error) {
@@ -134,6 +138,10 @@ exports.submitMentorTest = async (req, res, next) => {
       verified: mentor.verified,
       score: Math.round(finalScore),
       attempts: mentor.verification.attempts,
+      passedSkills: storedTest.mcq.filter((q, i) => {
+        const ans = mcqAnswers.find(a => a.id === q.id);
+        return ans && ans.answer === q.correctIndex;
+      }).map(q => q.skill),
       message: mentor.verified
         ? "Mentor verified successfully"
         : "Test failed. You can retry later."

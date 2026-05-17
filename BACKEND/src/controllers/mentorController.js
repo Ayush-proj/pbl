@@ -75,6 +75,35 @@ exports.getMentorProfile = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.uploadMentorProfileImage = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No file uploaded" });
+    }
+
+    const fileUrl = `/uploads/profile/${req.file.filename}`;
+    
+    const mentor = await Mentor.findOneAndUpdate(
+      { userId: req.user._id },
+      { profileImage: fileUrl },
+      { new: true }
+    );
+
+    if (!mentor) {
+      return res.status(404).json({ success: false, message: "Mentor profile not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Profile image uploaded",
+      profileImage: fileUrl,
+      mentor
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 exports.searchMentors = async (req, res, next) => {
   try {
     const { lat, lng, skill, radius = 50000 } = req.query;

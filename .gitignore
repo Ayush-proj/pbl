@@ -1,4 +1,14 @@
-node_modules/
+node_modules
+dist
 .env
+.env.local
+.env.production
+key.pem
+cert.pem
+*.local
 .DS_Store
-dist/
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+!uploads/profile/.gitkeep
