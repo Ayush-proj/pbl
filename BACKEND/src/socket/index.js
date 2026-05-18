@@ -5,9 +5,12 @@ let io;
 function initSocket(server) {
   io = new Server(server, {
     cors: {
-      origin: "*",
-      methods: ["GET", "POST"]
-    }
+      origin: process.env.FRONTEND_URL || "*",
+      methods: ["GET", "POST"],
+      credentials: true
+    },
+    pingTimeout: 60000,
+    pingInterval: 25000
   });
 
   // Track active rooms: roomId -> { users: [socketId, ...], startedAt, duration }
