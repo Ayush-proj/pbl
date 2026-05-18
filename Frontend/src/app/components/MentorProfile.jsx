@@ -199,9 +199,8 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                 .map(({ day, startTime, endTime }) => ({ day, startTime, endTime }));
             const formData = { ...form, availability: availabilityForBackend };
             await onSaveProfile(formData);
-            toast.success('Profile saved successfully');
         } catch (err) {
-            toast.error('Failed to save profile');
+            // Error already shown in App.jsx
         } finally {
             setSaving(false);
         }

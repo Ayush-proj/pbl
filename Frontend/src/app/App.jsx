@@ -149,11 +149,6 @@ export default function App() {
     };
     useAuthStore.getState().setUser(mergedUser);
 
-    const currentMentorProfile = useAuthStore.getState().mentorProfile;
-    const optimisticProfile = { ...currentMentorProfile, ...updatedProfile };
-    useAuthStore.getState().setMentorProfile(optimisticProfile);
-    setSelectedMentor(optimisticProfile);
-
     try {
       const response = await createMentorProfile({
         name: updatedProfile.name,
@@ -171,8 +166,11 @@ export default function App() {
       const savedProfile = response.data.mentor;
       useAuthStore.getState().setMentorProfile(savedProfile);
       setSelectedMentor(savedProfile);
+      toast.success('Profile saved successfully');
+      return savedProfile;
     } catch (error) {
-      console.warn('API save failed, using local data:', error.message);
+      toast.error('Failed to save profile');
+      throw error;
     }
   };
 
@@ -502,7 +500,7 @@ export default function App() {
               onExploreFullPage={() => setCurrentView('discovery-full')}
             />
           ) : (
-            <MentorDashboard key={dashboardTab} initialTab={dashboardTab}
+            <MentorDashboard key={mentorProfile?._id || 'mentor-dashboard'} initialTab={dashboardTab}
               onStudentClick={(student) => {
                 setSelectedCandidate(student);
                 setIsCandidateModalOpen(true);

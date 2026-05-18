@@ -133,7 +133,7 @@ export function MentorDashboard({ onStudentClick, onSettings, onLogout, onNaviga
     // Fetch bookings and wallet data on mount
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [mentorProfile?._id]);
 
     // Real-time booking notifications
     const handleNewBooking = useCallback(() => {
