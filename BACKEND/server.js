@@ -34,17 +34,20 @@ cron.schedule("* * * * *", async () => {
 });
 
 // Start server with EADDRINUSE auto-recovery
+let isShuttingDown = false;
+
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🔌 Socket.io ready on port ${PORT}`);
 });
 
 server.on('error', (err) => {
+  if (isShuttingDown) return;
+  
   if (err.code === 'EADDRINUSE') {
     console.error(`❌ Port ${PORT} is in use. Attempting to free it...`);
     const { execSync } = require('child_process');
     try {
-      // Kill whatever is using the port
       execSync(`lsof -ti:${PORT} | xargs kill -9`);
       console.log(`✅ Freed port ${PORT}, restarting...`);
       setTimeout(() => {
@@ -55,7 +58,7 @@ server.on('error', (err) => {
         });
       }, 1000);
     } catch (e) {
-      console.error('Could not free port automatically. Please run: lsof -ti:5001 | xargs kill -9');
+      console.error(`❌ Could not free port ${PORT}. Please run: lsof -ti:${PORT} | xargs kill -9`);
       process.exit(1);
     }
   } else {
