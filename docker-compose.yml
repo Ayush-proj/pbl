@@ -1,13 +1,4 @@
 services:
-  # MongoDB Database
-  mongo:
-    image: mongo:7
-    container_name: guruconnect-mongo
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
-
   # Backend API
   backend:
     build: ./BACKEND
@@ -16,24 +7,11 @@ services:
       - "5001:5001"
     environment:
       - PORT=5001
-      - MONGO_URI=mongodb://mongo:27017/mentorconnect
+      - NODE_ENV=production
+      - MONGO_URI=mongodb+srv://apicreator04_db_user:n7P1CTUTFUI3EPrY@cluster0.1vaky5o.mongodb.net/guruconnect?retryWrites=true&w=majority&appName=Cluster0
       - JWT_SECRET=supersecretkey
+      - FRONTEND_URL=https://mentorconnect-hazel.vercel.app
       - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
       - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
-    depends_on:
-      - mongo
-
-  # Frontend React App
-  frontend:
-    build: ./Frontend
-    container_name: guruconnect-frontend
-    ports:
-      - "5174:5174"
-    environment:
-      - VITE_API_TARGET=http://backend:5001
-    depends_on:
-      - backend
-
-
-volumes:
-  mongo-data:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    restart: unless-stopped
