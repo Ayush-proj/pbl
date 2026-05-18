@@ -2,6 +2,10 @@ import axios from 'axios';
 
 const API = axios.create({
   baseURL: '/api',
+  timeout: 15000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
 });
 
 API.interceptors.request.use((config) => {
@@ -15,7 +19,12 @@ API.interceptors.request.use((config) => {
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
+    const status = error.response?.status;
+    const message = error.response?.data?.message || error.message;
+
+    console.error('API Error:', status, message);
+
+    if (status === 401) {
       localStorage.removeItem('guruconnect-token');
       localStorage.removeItem('guruconnect-user');
       localStorage.removeItem('guruconnect-mentor-profile');
@@ -30,8 +39,11 @@ API.interceptors.response.use(
           localStorage.setItem('guruconnect-auth', JSON.stringify(stored));
         }
       } catch {}
-      window.location.reload();
+      if (window.location.pathname !== '/') {
+        window.location.reload();
+      }
     }
+
     return Promise.reject(error);
   }
 );
