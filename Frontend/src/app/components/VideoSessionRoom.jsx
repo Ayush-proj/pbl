@@ -521,7 +521,7 @@ function VideoSessionRoom({ booking, userRole = 'candidate', onEnd }) {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col pt-20 sm:pt-24 pb-4 sm:pb-8 px-3 sm:px-6">
+    <div className="min-h-screen bg-background text-foreground flex flex-col pt-20 sm:pt-24 pb-4 sm:pb-8 px-3 sm:px-6 overflow-y-auto">
       <div className="max-w-6xl mx-auto w-full flex-grow flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between mb-4 sm:mb-8 gap-2">

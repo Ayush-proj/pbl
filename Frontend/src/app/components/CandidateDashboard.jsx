@@ -71,6 +71,60 @@ export function CandidateDashboard({ initialTab = 'upcoming', onMentorClick, onB
     const [notifications, setNotifications] = useState([]);
     const { theme, toggleTheme } = useTheme();
 
+    // Skeleton Component
+    const Skeleton = ({ className = '' }) => (
+        <div className={`animate-pulse bg-muted dark:bg-white/10 rounded-lg ${className}`} />
+    );
+
+    // Loading Skeleton Layout
+    const LoadingSkeleton = () => (
+        <div className="space-y-6">
+            {/* Welcome Card Skeleton */}
+            <Card>
+                <CardContent className="p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="space-y-3">
+                            <Skeleton className="h-8 w-48" />
+                            <Skeleton className="h-5 w-64" />
+                        </div>
+                        <Skeleton className="h-10 w-32" />
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Stats Grid Skeleton */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[1, 2, 3, 4].map(i => (
+                    <Card key={i}>
+                        <CardContent className="p-4 text-center">
+                            <Skeleton className="h-8 w-12 mx-auto mb-2" />
+                            <Skeleton className="h-3 w-16 mx-auto" />
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+
+            {/* Sessions Skeleton */}
+            <Card>
+                <CardContent className="p-6">
+                    <Skeleton className="h-6 w-24 mb-4" />
+                    <div className="space-y-4">
+                        {[1, 2].map(i => (
+                            <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-border">
+                                <Skeleton className="w-12 h-12 rounded-full" />
+                                <div className="flex-1 space-y-2">
+                                    <Skeleton className="h-4 w-40" />
+                                    <Skeleton className="h-3 w-24" />
+                                </div>
+                                <Skeleton className="h-8 w-20 rounded-lg" />
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+
     useEffect(() => {
         const fetchAll = async () => {
             await fetchBookings();
@@ -736,7 +790,11 @@ export function CandidateDashboard({ initialTab = 'upcoming', onMentorClick, onB
 
                 {/* SCROLLABLE CONTENT - ASYMMETRICAL GRID LAYOUT */}
                 <div className="flex-1 overflow-y-auto bg-background/50">
-                    {activeTab === 'help' ? (
+                    {bookingsLoading ? (
+                        <div className="max-w-7xl mx-auto w-full p-6">
+                            <LoadingSkeleton />
+                        </div>
+                    ) : activeTab === 'help' ? (
                         <div className="max-w-7xl mx-auto w-full p-6">
                             {renderHelpCenter()}
                         </div>

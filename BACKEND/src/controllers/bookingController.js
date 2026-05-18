@@ -52,9 +52,11 @@ exports.createBooking = async (req, res) => {
     let mentorEarning = 0;
 
     if (sessionType === "paid") {
-      amount = mentor.hourlyRate * (duration / 60);
-      commissionAmount = amount * 0.10; // 10% platform fee
-      mentorEarning = amount - commissionAmount;
+      const hourlyRate = Number(mentor.hourlyRate) || 0;
+      const durationHours = (duration || 60) / 60;
+      amount = Math.round(hourlyRate * durationHours * 100) / 100;
+      commissionAmount = Math.round(amount * 0.10 * 100) / 100;
+      mentorEarning = Math.round((amount - commissionAmount) * 100) / 100;
     }
 
     const booking = await Booking.create({

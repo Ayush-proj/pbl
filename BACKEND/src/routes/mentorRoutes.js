@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { createMentorProfile, getMentorProfile, searchMentors, getWallet, getEarnings, getTransactions, getPopularSkills, uploadMentorProfileImage } = require("../controllers/mentorController");
+const { createMentorProfile, getMentorProfile, searchMentors, getWallet, getEarnings, getTransactions, getPopularSkills, uploadMentorProfileImage, requestPayout } = require("../controllers/mentorController");
 const { protect, mentorOnly } = require("../middlewares/authMiddleware");
 const { getMentorTest, submitMentorTest } = require("../controllers/mentorTestController");
 const { getAvailableSlots } = require("../controllers/mentorSlots.controller");
@@ -36,6 +36,7 @@ router.post(
   submitMentorTest
 );
 router.get("/wallet", protect, mentorOnly, getWallet);
+router.post("/wallet/withdraw", protect, mentorOnly, requestPayout);
 router.get("/earnings", protect, mentorOnly, getEarnings);
 router.get("/transactions", protect, mentorOnly, getTransactions);
 router.get("/skills/popular", getPopularSkills);

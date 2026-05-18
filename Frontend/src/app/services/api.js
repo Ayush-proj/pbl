@@ -52,6 +52,7 @@ export const getMentorSlots = (mentorId, params) => API.get(`/mentor/${mentorId}
 export const getMentorTest = () => API.get('/mentor/test');
 export const submitMentorTest = (data) => API.post('/mentor/test/submit', data);
 export const getMentorWallet = () => API.get('/mentor/wallet');
+export const requestMentorPayout = (amount) => API.post('/mentor/wallet/withdraw', { amount });
 export const getMentorEarnings = () => API.get('/mentor/earnings');
 export const getMentorTransactions = (page = 1) => API.get(`/mentor/transactions?page=${page}`);
 export const getPopularSkills = () => API.get('/mentor/skills/popular');
@@ -90,5 +91,10 @@ export const markMessagesRead = (conversationId) => API.put(`/chat/read/${conver
 // ============ TICKETS (HELP CENTER) ============
 export const submitTicketAPI = (data) => API.post('/auth/tickets', data);
 export const getMyTicketsAPI = () => API.get('/auth/tickets');
+
+// ============ ADMIN PAYOUTS ============
+export const getAdminPayouts = () => API.get('/admin/payouts');
+export const approvePayoutAPI = (mentorId) => API.post(`/admin/payouts/${mentorId}/approve`);
+export const rejectPayoutAPI = (mentorId, reason) => API.post(`/admin/payouts/${mentorId}/reject`, { reason });
 
 export default API;

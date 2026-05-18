@@ -74,6 +74,7 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
     }, [error]);
 
     const [availableSlots, setAvailableSlots] = useState([]);
+    const [dayAvailability, setDayAvailability] = useState(null);
 
     useEffect(() => {
         if (!isOpen || !mentor?._id) return;
@@ -100,7 +101,10 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
                         available: true
                     };
                 });
-                if (!abortController.signal.aborted) setAvailableSlots(slots);
+                if (!abortController.signal.aborted) {
+                    setAvailableSlots(slots);
+                    setDayAvailability(res.data.availability || null);
+                }
             })
             .catch(err => {
                 if (abortController.signal.aborted) return;
@@ -227,6 +231,11 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
                         <Clock className="w-3.5 h-3.5" />
                         2. Available Slots
                     </h3>
+                    {dayAvailability && (
+                        <div className="mb-3 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                            Available: {dayAvailability.startTime} - {dayAvailability.endTime}
+                        </div>
+                    )}
                     {isLoadingSlots ? (
                         <div className="grid grid-cols-3 gap-3">
                             {[1, 2, 3, 4, 5, 6].map(i => (
@@ -345,7 +354,7 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
                             <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
                                 <span className="flex items-center gap-1"><Timer className="w-3 h-3" /> 60 MINS</span>
                                 <span>•</span>
-                                <span className="text-foreground">₹{mentor?.hourlyRate || mentor?.rate || 500}</span>
+                                <span className="text-foreground">₹{Number(mentor?.hourlyRate) || Number(mentor?.rate) || 500}</span>
                             </div>
                             {sessionType === 'paid' && (
                                 <motion.div layoutId="sessionHighlight" className="absolute inset-0 border-2 border-[var(--electric-blue)] rounded-[1.5rem]" />
@@ -379,7 +388,7 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
                             <div className="pt-3 border-t border-border dark:border-white/5 flex items-center justify-between">
                                 <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Total Amount</span>
                                 <span className="text-xl font-black text-foreground dark:text-white">
-                                    {sessionType === 'demo' ? "FREE" : `₹${mentor?.hourlyRate || mentor?.rate || 500}`}
+                                    {sessionType === 'demo' ? "FREE" : `₹${Number(mentor?.hourlyRate) || Number(mentor?.rate) || 500}`}
                                 </span>
                             </div>
                         </div>

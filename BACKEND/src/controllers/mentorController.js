@@ -189,6 +189,81 @@ exports.getWallet = async (req, res, next) => {
 };
 
 /* =========================
+   REQUEST PAYOUT
+========================= */
+exports.requestPayout = async (req, res, next) => {
+  try {
+    const { amount } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid amount"
+      });
+    }
+
+    const mentor = await Mentor.findOne({ userId: req.user._id });
+
+    if (!mentor) {
+      return res.status(404).json({
+        success: false,
+        message: "Mentor profile not found"
+      });
+    }
+
+    if (mentor.walletBalance < amount) {
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient balance"
+      });
+    }
+
+    // Check for pending payout requests
+    const pendingRequests = mentor.payoutRequests?.filter(r => r.status === "pending");
+    if (pendingRequests?.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "You already have a pending payout request"
+      });
+    }
+
+    // Deduct from wallet and add to payout request
+    mentor.walletBalance -= amount;
+    
+    if (!mentor.payoutRequests) {
+      mentor.payoutRequests = [];
+    }
+    
+    mentor.payoutRequests.push({
+      amount,
+      status: "pending",
+      requestedAt: new Date()
+    });
+
+    await mentor.save();
+
+    // Create transaction record
+    const Transaction = require("../models/Transaction");
+    await Transaction.create({
+      mentorId: mentor._id,
+      type: "debit",
+      amount: amount,
+      description: "Payout requested",
+      status: "pending"
+    });
+
+    res.json({
+      success: true,
+      message: "Payout request submitted successfully",
+      remainingBalance: mentor.walletBalance,
+      payoutRequest: mentor.payoutRequests[mentor.payoutRequests.length - 1]
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/* =========================
    GET MENTOR EARNINGS
 ========================= */
 exports.getEarnings = async (req, res, next) => {

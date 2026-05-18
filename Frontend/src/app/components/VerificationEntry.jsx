@@ -84,8 +84,8 @@ export function VerificationEntry({ onStartTest, verificationStatus = 'not-start
     const statusConfig = getStatusConfig();
     const StatusIcon = statusConfig.icon;
 
-    const remainingAttempts = maxAttempts - attempts;
-    const canStartTest = (verificationStatus === 'not-started' || verificationStatus === 'in-progress' || verificationStatus === 'rejected') && remainingAttempts > 0;
+    const remainingAttempts = maxAttempts === Infinity ? Infinity : maxAttempts - attempts;
+    const canStartTest = (verificationStatus === 'not-started' || verificationStatus === 'in-progress' || verificationStatus === 'rejected') && (remainingAttempts === Infinity || remainingAttempts > 0);
 
     return (
         <motion.div
@@ -136,7 +136,11 @@ export function VerificationEntry({ onStartTest, verificationStatus = 'not-start
                                 transition={{ delay: 0.4 }}
                                 className="text-sm font-bold text-muted-foreground"
                             >
-                                <span className="text-primary">{remainingAttempts}</span> of <span className="text-primary">{maxAttempts}</span> attempts remaining
+                                {maxAttempts === Infinity ? (
+                                    <span className="text-primary">Unlimited attempts</span>
+                                ) : (
+                                    <><span className="text-primary">{remainingAttempts}</span> of <span className="text-primary">{maxAttempts}</span> attempts remaining</>
+                                )}
                             </motion.p>
                         )}
                     </div>

@@ -2,6 +2,10 @@ const razorpay = require("../config/razorpay");
 const Booking = require("../models/booking");
 const crypto = require("crypto");
 const { emitToUser } = require("../socket");
+const Transaction = require("../models/Transaction");
+
+// Platform wallet ID (stored in config or use a fixed identifier)
+const PLATFORM_WALLET_ID = "platform_admin";
 
 /* =========================
    CREATE ORDER
@@ -76,6 +80,19 @@ exports.verifyPayment = async (req, res) => {
     booking.razorpayPaymentId = razorpay_payment_id;
 
     await booking.save();
+
+    // Credit 10% commission to platform wallet (recorded in transactions)
+    if (booking.commissionAmount > 0) {
+      await Transaction.create({
+        bookingId: booking._id,
+        type: "credit",
+        amount: booking.commissionAmount,
+        description: `Platform commission - Booking ${booking._id}`,
+        paymentMethod: "razorpay",
+        paymentStatus: "completed",
+        createdAt: new Date()
+      });
+    }
 
     // Notify mentor that payment is confirmed
     emitToUser(booking.mentorId?.toString(), 'payment_confirmed', {

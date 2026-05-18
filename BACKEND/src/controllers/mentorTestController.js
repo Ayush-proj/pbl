@@ -1,6 +1,5 @@
 const Mentor = require("../models/Mentor");
 const generateMentorTest = require("../services/geminiTest.service");
-const { MAX_TEST_ATTEMPTS, COOLDOWN_HOURS } = require("../config/constants");
 const MentorTestSession = require("../models/MentorTestSession");
 
 exports.getMentorTest = async (req, res, next) => {
@@ -19,26 +18,6 @@ exports.getMentorTest = async (req, res, next) => {
         success: false,
         message: "Mentor already verified"
       });
-    }
-
-    if (mentor.verification.attempts >= MAX_TEST_ATTEMPTS) {
-      return res.status(403).json({
-        success: false,
-        message: "Maximum test attempts exceeded"
-      });
-    }
-
-    if (mentor.verification.lastAttemptAt) {
-      const hoursPassed =
-        (Date.now() - mentor.verification.lastAttemptAt.getTime()) /
-        (1000 * 60 * 60);
-
-      if (hoursPassed < COOLDOWN_HOURS) {
-        return res.status(429).json({
-          success: false,
-          message: "Please wait before taking the test again"
-        });
-      }
     }
 
     let test;

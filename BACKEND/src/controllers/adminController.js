@@ -492,4 +492,107 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
+// ─── GET /api/admin/payouts - Get all pending payout requests ───────────────────────
+exports.getAllPayouts = async (req, res) => {
+  try {
+    const mentors = await Mentor.find({
+      'payoutRequests.status': 'pending'
+    }).select('name email userId payoutRequests walletBalance');
+
+    const payouts = [];
+    for (const mentor of mentors) {
+      const user = await User.findById(mentor.userId);
+      for (const req of mentor.payoutRequests) {
+        if (req.status === 'pending') {
+          payouts.push({
+            id: req._id,
+            mentorId: mentor._id,
+            mentorName: user?.name || 'Unknown',
+            mentorEmail: user?.email || 'Unknown',
+            amount: req.amount,
+            requestedAt: req.requestedAt,
+            currentBalance: mentor.walletBalance
+          });
+        }
+      }
+    }
+
+    res.json({ success: true, payouts });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─── POST /api/admin/payouts/:mentorId/approve - Approve payout request ───────────────
+exports.approvePayout = async (req, res) => {
+  try {
+    const { mentorId } = req.params;
+    const { payoutIndex } = req.body;
+
+    const mentor = await Mentor.findById(mentorId);
+    if (!mentor) {
+      return res.status(404).json({ success: false, message: 'Mentor not found' });
+    }
+
+    if (!mentor.payoutRequests || mentor.payoutRequests.length === 0) {
+      return res.status(400).json({ success: false, message: 'No payout requests found' });
+    }
+
+    const pendingRequest = mentor.payoutRequests.find(r => r.status === 'pending');
+    if (!pendingRequest) {
+      return res.status(400).json({ success: false, message: 'No pending payout request' });
+    }
+
+    // Update request status to approved
+    pendingRequest.status = 'approved';
+
+    // Update total withdrawn
+    mentor.totalWithdrawn = (mentor.totalWithdrawn || 0) + pendingRequest.amount;
+    await mentor.save();
+
+    // Update transaction status
+    await Transaction.findOneAndUpdate(
+      { mentorId: mentor._id, type: 'debit', amount: pendingRequest.amount, status: 'pending' },
+      { status: 'completed', description: `Payout approved - ₹${pendingRequest.amount}` }
+    );
+
+    res.json({ success: true, message: 'Payout approved successfully', amount: pendingRequest.amount });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─── POST /api/admin/payouts/:mentorId/reject - Reject payout request ──────────────────
+exports.rejectPayout = async (req, res) => {
+  try {
+    const { mentorId } = req.params;
+    const { reason } = req.body;
+
+    const mentor = await Mentor.findById(mentorId);
+    if (!mentor) {
+      return res.status(404).json({ success: false, message: 'Mentor not found' });
+    }
+
+    const pendingRequest = mentor.payoutRequests.find(r => r.status === 'pending');
+    if (!pendingRequest) {
+      return res.status(400).json({ success: false, message: 'No pending payout request' });
+    }
+
+    // Refund the amount back to wallet
+    mentor.walletBalance += pendingRequest.amount;
+    pendingRequest.status = 'rejected';
+    await mentor.save();
+
+    // Update transaction
+    await Transaction.findOneAndUpdate(
+      { mentorId: mentor._id, type: 'debit', amount: pendingRequest.amount, status: 'pending' },
+      { status: 'failed', description: `Payout rejected${reason ? `: ${reason}` : ''}` }
+    );
+
+    res.json({ success: true, message: 'Payout rejected and amount refunded to wallet' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 

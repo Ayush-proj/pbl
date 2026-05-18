@@ -92,4 +92,9 @@ export const getAdminUser = () => {
 
 export const isAdminLoggedIn = () => !!localStorage.getItem(ADMIN_TOKEN_KEY);
 
+// Payout Management
+export const getAdminPayouts = () => adminAPI.get('/payouts');
+export const approvePayoutAPI = (mentorId) => adminAPI.post(`/payouts/${mentorId}/approve`);
+export const rejectPayoutAPI = (mentorId, reason) => adminAPI.post(`/payouts/${mentorId}/reject`, { reason });
+
 export default adminAPI;

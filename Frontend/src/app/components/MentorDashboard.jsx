@@ -30,7 +30,9 @@ Settings,
     User,
     PanelLeftClose,
     PanelLeftOpen,
-    Compass
+    Compass,
+    ShieldCheck,
+    CheckCircle2
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
@@ -55,7 +57,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { useTheme } from '../context/ThemeContext';
 import { ChatButton } from './Chat';
 
-export function MentorDashboard({ onStudentClick, onSettings, onLogout }) {
+export function MentorDashboard({ onStudentClick, onSettings, onLogout, onNavigate, onStartVerification }) {
     const { user: authUser, mentorProfile, logout, setMentorProfile } = useAuthStore();
     const [activeTab, setActiveTab] = useState('upcoming');
     const [bookings, setBookings] = useState([]);
@@ -67,7 +69,65 @@ export function MentorDashboard({ onStudentClick, onSettings, onLogout }) {
     const [notifications, setNotifications] = useState([]);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [activeChat, setActiveChat] = useState(null);
+    const [verificationLoading, setVerificationLoading] = useState(false);
     const { theme, toggleTheme } = useTheme();
+
+    // Skeleton Component
+    const Skeleton = ({ className = '' }) => (
+        <div className={`animate-pulse bg-muted dark:bg-white/10 rounded-lg ${className}`} />
+    );
+
+    // Loading Skeleton Layout
+    const LoadingSkeleton = () => (
+        <div className="space-y-6">
+            {/* Welcome Card Skeleton */}
+            <Card>
+                <CardContent className="p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="space-y-3">
+                            <Skeleton className="h-8 w-48" />
+                            <Skeleton className="h-5 w-64" />
+                        </div>
+                        <Skeleton className="h-10 w-32" />
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Stats Grid Skeleton */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                {[1, 2, 3, 4].map(i => (
+                    <Card key={i}>
+                        <CardContent className="p-4 flex items-center gap-3">
+                            <Skeleton className="w-10 h-10 rounded-lg" />
+                            <div className="space-y-2">
+                                <Skeleton className="h-3 w-16" />
+                                <Skeleton className="h-6 w-12" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+
+            {/* Sessions Skeleton */}
+            <Card>
+                <CardContent className="p-6">
+                    <Skeleton className="h-6 w-24 mb-4" />
+                    <div className="space-y-4">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-border">
+                                <Skeleton className="w-12 h-12 rounded-full" />
+                                <div className="flex-1 space-y-2">
+                                    <Skeleton className="h-4 w-40" />
+                                    <Skeleton className="h-3 w-24" />
+                                </div>
+                                <Skeleton className="h-8 w-20 rounded-lg" />
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
     const canvasRef = useRef(null);
 
     // Fetch bookings and wallet data on mount
@@ -683,7 +743,7 @@ export function MentorDashboard({ onStudentClick, onSettings, onLogout }) {
                                     </div>
                                 </DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => onSettings?.()}><User className="mr-2 h-4 w-4" />My Profile</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onNavigate?.('mentor-profile')}><User className="mr-2 h-4 w-4" />My Profile</DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => onSettings?.()}><Settings className="mr-2 h-4 w-4" />Settings</DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem className="text-destructive" onClick={() => { logout(); onLogout?.(); }}><LogOut className="mr-2 h-4 w-4" />Logout</DropdownMenuItem>
@@ -694,7 +754,11 @@ export function MentorDashboard({ onStudentClick, onSettings, onLogout }) {
 
                 {/* SCROLLABLE CONTENT - GRID LAYOUT LIKE STUDENT DASHBOARD */}
                 <div className="flex-1 overflow-y-auto bg-background/50">
-                    {activeTab === 'help' ? (
+                    {loading ? (
+                        <div className="max-w-7xl mx-auto w-full p-6">
+                            <LoadingSkeleton />
+                        </div>
+                    ) : activeTab === 'help' ? (
                         <div className="max-w-7xl mx-auto w-full p-6">
                             {renderHelpCenter()}
                         </div>
@@ -717,6 +781,57 @@ export function MentorDashboard({ onStudentClick, onSettings, onLogout }) {
                                     </div>
                                 </CardContent>
                             </Card>
+
+                            {/* VERIFICATION STATUS BANNER */}
+                            {!mentorProfile?.verified && mentorProfile?.skills?.length > 0 && (
+                                <Card className="bg-amber-500/10 border-amber-500/30">
+                                    <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                                                <ShieldCheck className="w-5 h-5 text-amber-500" />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-foreground">Complete your verification</p>
+                                                <p className="text-sm text-muted-foreground">Take the test to get verified badge and attract more students</p>
+                                            </div>
+                                        </div>
+                                        <Button 
+                                            onClick={() => {
+                                                setVerificationLoading(true);
+                                                onStartVerification?.();
+                                            }}
+                                            disabled={verificationLoading}
+                                            className="bg-amber-500 hover:bg-amber-600 text-white font-bold"
+                                        >
+                                            {verificationLoading ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                    Loading...
+                                                </>
+                                            ) : (
+                                                'Take Test'
+                                            )}
+                                        </Button>
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* VERIFIED BANNER */}
+                            {mentorProfile?.verified && (
+                                <Card className="bg-emerald-500/10 border-emerald-500/30">
+                                    <CardContent className="p-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                                                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-foreground">Verified Mentor</p>
+                                                <p className="text-sm text-muted-foreground">Your profile is verified and visible to students</p>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
 
                             {/* Stats Grid */}
                             <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -952,6 +1067,31 @@ export function MentorDashboard({ onStudentClick, onSettings, onLogout }) {
 }
 
 function EarningsTab({ earningsData, transactionsData }) {
+    const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+    const [withdrawAmount, setWithdrawAmount] = useState('');
+    const [withdrawLoading, setWithdrawLoading] = useState(false);
+
+    const handleWithdraw = async () => {
+        const amount = parseFloat(withdrawAmount);
+        if (!amount || amount <= 0 || amount > (earningsData.walletBalance || 0)) {
+            toast.error('Invalid amount');
+            return;
+        }
+        setWithdrawLoading(true);
+        try {
+            const { requestMentorPayout } = require('../services/api');
+            await requestMentorPayout(amount);
+            toast.success('Withdrawal request submitted!');
+            setShowWithdrawModal(false);
+            setWithdrawAmount('');
+            window.location.reload();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Withdrawal failed');
+        } finally {
+            setWithdrawLoading(false);
+        }
+    };
+
     if (!earningsData) {
         return (
             <div className="py-24 flex flex-col items-center text-center">
@@ -970,9 +1110,20 @@ function EarningsTab({ earningsData, transactionsData }) {
                     animate={{ opacity: 1, y: 0 }}
                     className="p-5 sm:p-8 rounded-2xl sm:rounded-[2rem] bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 shadow-lg"
                 >
-                    <div className="flex items-center gap-4 mb-4">
-                        <Wallet className="w-8 h-8 text-emerald-500" />
-                        <span className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">Wallet Balance</span>
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-4">
+                            <Wallet className="w-8 h-8 text-emerald-500" />
+                            <span className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">Wallet Balance</span>
+                        </div>
+                        {(earningsData.walletBalance || 0) > 0 && (
+                            <Button
+                                onClick={() => setShowWithdrawModal(true)}
+                                size="sm"
+                                className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold"
+                            >
+                                Withdraw
+                            </Button>
+                        )}
                     </div>
                     <p className="text-2xl sm:text-4xl font-black text-foreground">₹{earningsData.walletBalance || 0}</p>
                 </motion.div>
@@ -1124,6 +1275,63 @@ function EarningsTab({ earningsData, transactionsData }) {
                     </div>
                     <h3 className="text-3xl font-black mb-3 tracking-tighter">No earnings yet</h3>
                     <p className="text-muted-foreground text-lg font-medium">Complete paid sessions to start earning!</p>
+                </div>
+            )}
+
+            {/* Withdraw Modal */}
+            {showWithdrawModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-card w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-border">
+                        <div className="p-6">
+                            <h3 className="text-2xl font-black mb-2">Withdraw Earnings</h3>
+                            <p className="text-muted-foreground mb-6 font-medium">
+                                Available balance: ₹{earningsData.walletBalance || 0}
+                            </p>
+                            
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-black uppercase tracking-widest mb-2 text-muted-foreground">Amount</label>
+                                    <input
+                                        type="number"
+                                        value={withdrawAmount}
+                                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                                        placeholder="Enter amount"
+                                        className="w-full h-12 px-4 rounded-xl bg-muted/50 dark:bg-white/5 border border-border focus:border-primary outline-none font-bold"
+                                        max={earningsData.walletBalance}
+                                    />
+                                </div>
+                                
+                                <div className="flex gap-2">
+                                    {[1000, 2000, 5000, earningsData.walletBalance].filter(x => x > 0).map(amt => (
+                                        <button
+                                            key={amt}
+                                            onClick={() => setWithdrawAmount(amt)}
+                                            className="px-3 py-2 rounded-lg bg-muted/50 dark:bg-white/5 text-sm font-bold hover:bg-primary/10"
+                                        >
+                                            ₹{amt}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 mt-6">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowWithdrawModal(false)}
+                                    className="flex-1"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={handleWithdraw}
+                                    disabled={withdrawLoading || !withdrawAmount}
+                                    className="flex-1 bg-emerald-500 hover:bg-emerald-600"
+                                >
+                                    {withdrawLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Withdraw'}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 </div>

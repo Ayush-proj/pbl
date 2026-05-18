@@ -1,7 +1,14 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Mail, Lock, User, Github, Chrome, Users } from 'lucide-react';
+import { X, Mail, Lock, User, Users, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import useAuthStore from '../store/authStore';
+
+// Skeleton Component
+function Skeleton({ className = '' }) {
+  return (
+    <div className={`animate-pulse bg-muted dark:bg-white/10 rounded-lg ${className}`} />
+  );
+}
 
 export function AuthModal({ isOpen, onClose, onSuccess }) {
   const [activeTab, setActiveTab] = useState('login');
@@ -159,6 +166,34 @@ function LoginForm({ onSuccess, isCompact }) {
   const inputHeight = isCompact ? 'h-[40px]' : 'h-[44px]';
   const spacing = isCompact ? 'space-y-4' : 'space-y-6';
 
+  // Loading Skeleton
+  if (isLoading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className={`flex-1 flex flex-col min-h-0 ${spacing}`}
+      >
+        <div className={`flex-1 overflow-y-auto custom-scrollbar pr-1 -mr-1 ${spacing}`}>
+          <div className="space-y-4">
+            <div>
+              <Skeleton className="h-3 w-12 mb-2" />
+              <Skeleton className={`w-full ${inputHeight}`} />
+            </div>
+            <div>
+              <Skeleton className="h-3 w-20 mb-2" />
+              <Skeleton className={`w-full ${inputHeight}`} />
+            </div>
+            <Skeleton className="h-4 w-24" />
+          </div>
+        </div>
+        <div className={`${isCompact ? 'pt-4' : 'pt-6'}`}>
+          <Skeleton className={`w-full ${isCompact ? 'h-12' : 'h-[48px]'} rounded-xl`} />
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.form
       initial={{ opacity: 0, x: -10 }}
@@ -218,34 +253,7 @@ function LoginForm({ onSuccess, isCompact }) {
           </label>
         </div>
 
-        {/* Divider */}
-        <div className={`relative transition-all ${isCompact ? 'my-5' : 'my-8'}`}>
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border dark:border-white/10" />
-          </div>
-          <div className="relative flex justify-center text-[10px] font-black uppercase tracking-[0.2em]">
-            <span className="px-3 bg-card text-muted-foreground font-bold">Social Access</span>
-          </div>
         </div>
-
-        {/* Social Login */}
-        <div className={`grid grid-cols-2 gap-3 transition-all ${isCompact ? 'mb-2' : 'mb-4'}`}>
-          <button
-            type="button"
-            className={`flex items-center justify-center gap-2 rounded-xl border border-border dark:border-white/10 hover:border-primary/50 hover:bg-muted/50 dark:hover:bg-white/5 transition-all group ${isCompact ? 'h-10' : 'h-12'}`}
-          >
-            <Chrome className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-foreground">Google</span>
-          </button>
-          <button
-            type="button"
-            className={`flex items-center justify-center gap-2 rounded-xl border border-border dark:border-white/10 hover:border-primary/50 hover:bg-muted/50 dark:hover:bg-white/5 transition-all group ${isCompact ? 'h-10' : 'h-12'}`}
-          >
-            <Github className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-foreground">GitHub</span>
-          </button>
-        </div>
-      </div>
 
       <div className={`${isCompact ? 'pt-4' : 'pt-6'}`}>
         <motion.button
@@ -255,7 +263,7 @@ function LoginForm({ onSuccess, isCompact }) {
           disabled={isLoading}
           className={`w-full ${isCompact ? 'h-12' : 'h-[48px]'} rounded-xl bg-primary text-primary-foreground font-black uppercase tracking-[0.2em] shadow-lg shadow-primary/20 hover:shadow-xl transition-all text-xs disabled:opacity-50`}
         >
-          {isLoading ? 'Logging in...' : 'Login'}
+          {isLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Login'}
         </motion.button>
       </div>
     </motion.form>
@@ -292,6 +300,44 @@ function SignupForm({ onSuccess, isCompact }) {
 
   const inputHeight = isCompact ? 'h-[40px]' : 'h-[44px]';
   const spacing = isCompact ? 'space-y-3' : 'space-y-5';
+
+  // Loading Skeleton
+  if (isLoading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className={`flex-1 flex flex-col min-h-0 ${spacing}`}
+      >
+        <div className={`flex-1 overflow-y-auto custom-scrollbar pr-1 -mr-1 ${spacing}`}>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+              <div className="sm:col-span-3">
+                <Skeleton className="h-3 w-16 mb-2" />
+                <Skeleton className={`w-full ${inputHeight}`} />
+              </div>
+              <div className="sm:col-span-2">
+                <Skeleton className="h-3 w-10 mb-2" />
+                <Skeleton className={`w-full ${inputHeight}`} />
+              </div>
+            </div>
+            <div>
+              <Skeleton className="h-3 w-12 mb-2" />
+              <Skeleton className={`w-full ${inputHeight}`} />
+            </div>
+            <div>
+              <Skeleton className="h-3 w-20 mb-2" />
+              <Skeleton className={`w-full ${inputHeight}`} />
+            </div>
+            <Skeleton className="h-3 w-48" />
+          </div>
+        </div>
+        <div className={`${isCompact ? 'pt-4' : 'pt-6'}`}>
+          <Skeleton className={`w-full ${isCompact ? 'h-12' : 'h-[48px]'} rounded-xl`} />
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.form
@@ -387,24 +433,6 @@ function SignupForm({ onSuccess, isCompact }) {
             <span className="px-3 bg-card text-muted-foreground font-bold">Social Access</span>
           </div>
         </div>
-
-        {/* Social Login */}
-        <div className={`grid grid-cols-2 gap-3 transition-all ${isCompact ? 'mb-2' : 'mb-4'}`}>
-          <button
-            type="button"
-            className={`flex items-center justify-center gap-2 rounded-xl border border-border dark:border-white/10 hover:border-primary/50 hover:bg-muted/50 dark:hover:bg-white/5 transition-all group ${isCompact ? 'h-10' : 'h-12'}`}
-          >
-            <Chrome className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-foreground">Google</span>
-          </button>
-          <button
-            type="button"
-            className={`flex items-center justify-center gap-2 rounded-xl border border-border dark:border-white/10 hover:border-primary/50 hover:bg-muted/50 dark:hover:bg-white/5 transition-all group ${isCompact ? 'h-10' : 'h-12'}`}
-          >
-            <Github className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-foreground">GitHub</span>
-          </button>
-        </div>
       </div>
 
       <div className={`${isCompact ? 'pt-4' : 'pt-6'}`}>
@@ -415,7 +443,7 @@ function SignupForm({ onSuccess, isCompact }) {
           disabled={isLoading}
           className={`w-full ${isCompact ? 'h-12' : 'h-[48px]'} rounded-xl bg-primary text-primary-foreground font-black uppercase tracking-[0.2em] shadow-lg shadow-primary/20 hover:shadow-xl transition-all text-xs disabled:opacity-50`}
         >
-          {isLoading ? 'Creating Account...' : 'Create Account'}
+          {isLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Create Account'}
         </motion.button>
       </div>
     </motion.form>

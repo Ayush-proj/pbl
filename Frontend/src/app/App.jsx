@@ -129,7 +129,7 @@ export default function App() {
   const [testResults, setTestResults] = useState(null);
   const [testAttempts, setTestAttempts] = useState(0);
   const [testTimeLimit, setTestTimeLimit] = useState(600);
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = Infinity;
 
   const handleAuthSuccess = (role) => {
     setUserRole(role);
@@ -262,7 +262,8 @@ export default function App() {
         title: q.question,
         description: '',
         options: q.options.map((opt, i) => ({
-          id: String.fromCharCode(97 + i),
+          id: `q${index + 1}_${String.fromCharCode(97 + i)}`,
+          label: String.fromCharCode(65 + i),
           text: opt
         }))
       }));
@@ -313,11 +314,7 @@ export default function App() {
           useAuthStore.getState().setMentorProfile({ ...currentMentorP, verified: true });
         }
       } else {
-        if (newAttemptCount >= MAX_ATTEMPTS) {
-          setVerificationStatus('permanently-rejected');
-        } else {
-          setVerificationStatus('rejected');
-        }
+        setVerificationStatus('rejected');
       }
 
       setCurrentView('verification-result');
@@ -507,6 +504,8 @@ export default function App() {
               }}
               onSettings={() => setCurrentView('mentor-settings')}
               onLogout={handleLogout}
+              onNavigate={(view) => setCurrentView(view)}
+              onStartVerification={handleStartTest}
             />
           )}
         </main>

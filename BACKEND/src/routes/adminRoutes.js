@@ -18,6 +18,9 @@ const {
   deleteNotification,
   createUser,
   deleteUser,
+  getAllPayouts,
+  approvePayout,
+  rejectPayout,
 } = require('../controllers/adminController');
 
 // Public
@@ -40,5 +43,10 @@ router.post('/notifications', createNotification);
 router.delete('/notifications/:id', deleteNotification);
 router.post('/users', createUser);
 router.delete('/users/:id', deleteUser);
+
+// Payout Management
+router.get('/payouts', getAllPayouts);
+router.post('/payouts/:mentorId/approve', approvePayout);
+router.post('/payouts/:mentorId/reject', rejectPayout);
 
 module.exports = router;

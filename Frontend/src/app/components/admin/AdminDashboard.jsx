@@ -5,7 +5,7 @@ import {
   CheckCircle, BarChart2, CreditCard, FileText,
   Bell, Settings, LogOut, Search, Menu, Filter,
   MoreVertical, User, RefreshCw, AlertTriangle, ShieldCheck, Check, X,
-  Trash2, Plus, Flag, AlertCircle, Sun, Moon,
+  Trash2, Plus, Flag, AlertCircle, Sun, Moon, DollarSign,
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -24,6 +24,7 @@ import {
   fetchAdminPayments, fetchAdminReports, resolveReportStatus,
   fetchAdminNotifications, createAdminNotification, deleteAdminNotification,
   createAdminUser, deleteAdminUser,
+  getAdminPayouts, approvePayoutAPI, rejectPayoutAPI,
 } from '../../services/adminApi';
 
 // ─── Sidebar config ──────────────────────────────────────────────────────────
@@ -34,6 +35,7 @@ const SIDEBAR_ITEMS = [
   { id: 'sessions',      label: 'Sessions',       icon: Calendar },
   { id: 'approvals',     label: 'Approvals',      icon: CheckCircle },
   { id: 'payments',      label: 'Payments',       icon: CreditCard },
+  { id: 'payouts',      label: 'Payouts',        icon: DollarSign },
   { id: 'reports',       label: 'Reports',        icon: Flag },
 ];
 const BOTTOM_ITEMS = [
@@ -104,6 +106,8 @@ export function AdminDashboard({ onLogout }) {
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [reports, setReports] = useState([]);
   const [loadingReports, setLoadingReports] = useState(false);
+  const [payouts, setPayouts] = useState([]);
+  const [loadingPayouts, setLoadingPayouts] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
 
@@ -245,6 +249,41 @@ export function AdminDashboard({ onLogout }) {
     }
   }, []);
 
+  // ── fetch payouts ──
+  const loadPayouts = useCallback(async () => {
+    setLoadingPayouts(true);
+    try {
+      const res = await getAdminPayouts();
+      setPayouts(res.data.payouts || []);
+    } catch (e) {
+      toast.error('Failed to load payout requests');
+    } finally {
+      setLoadingPayouts(false);
+    }
+  }, []);
+
+  // ── approve payout ──
+  const handleApprovePayout = async (mentorId) => {
+    try {
+      await approvePayoutAPI(mentorId);
+      toast.success('Payout approved!');
+      loadPayouts();
+    } catch (e) {
+      toast.error('Failed to approve payout');
+    }
+  };
+
+  // ── reject payout ──
+  const handleRejectPayout = async (mentorId) => {
+    try {
+      await rejectPayoutAPI(mentorId, 'Rejected by admin');
+      toast.success('Payout rejected');
+      loadPayouts();
+    } catch (e) {
+      toast.error('Failed to reject payout');
+    }
+  };
+
   // ── fetch notifications ──
   const loadNotifications = useCallback(async () => {
     setLoadingNotifications(true);
@@ -351,9 +390,10 @@ export function AdminDashboard({ onLogout }) {
     if (activeTab === 'approvals') loadApprovals();
     if (activeTab === 'sessions') loadBookings();
     if (activeTab === 'payments') loadPayments();
+    if (activeTab === 'payouts') loadPayouts();
     if (activeTab === 'reports') loadReports();
     if (activeTab === 'notifications') loadNotifications();
-  }, [activeTab, loadApprovals, loadBookings, loadPayments, loadReports, loadNotifications, bookingFilter]);
+  }, [activeTab, loadApprovals, loadBookings, loadPayments, loadPayouts, loadReports, loadNotifications, bookingFilter]);
 
   // ── actions ──
   const handleToggleActive = async (userId) => {
@@ -1211,7 +1251,83 @@ export function AdminDashboard({ onLogout }) {
     </div>
   );
 
-  // 7. Reports / Complaints View
+  // 7. Payouts View
+  const renderPayouts = () => (
+    <div className="bg-[#0f0f0f] border border-white/5 rounded-2xl overflow-hidden">
+      <div className="p-6 border-b border-white/10 flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-lg">Payout Requests</h3>
+          <p className="text-sm text-gray-400">Approve or reject mentor withdrawal requests</p>
+        </div>
+        <Button variant="ghost" size="sm" onClick={loadPayouts} className="text-[#00CFE8] hover:bg-[#00CFE8]/10 flex items-center gap-1">
+          <RefreshCw className="w-3 h-3" /> Refresh
+        </Button>
+      </div>
+
+      {loadingPayouts ? (
+        <div className="animate-pulse p-6 divide-y divide-white/5 space-y-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-16 bg-white/5 rounded-lg" />
+          ))}
+        </div>
+      ) : payouts.length === 0 ? (
+        <div className="text-center py-20 text-gray-500">
+          <DollarSign className="w-12 h-12 text-emerald-500/40 mx-auto mb-4" />
+          <p className="font-medium text-white">No Payout Requests</p>
+          <p className="text-xs mt-1">All mentor withdrawal requests have been processed.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-gray-400 bg-white/5 uppercase">
+              <tr>
+                <th className="px-6 py-4">Mentor</th>
+                <th className="px-6 py-4">Email</th>
+                <th className="px-6 py-4">Amount</th>
+                <th className="px-6 py-4">Current Balance</th>
+                <th className="px-6 py-4">Requested</th>
+                <th className="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {payouts.map((p) => (
+                <tr key={p.id} className="hover:bg-white/5 transition-colors">
+                  <td className="px-6 py-4 font-medium text-white">{p.mentorName}</td>
+                  <td className="px-6 py-4 text-gray-300">{p.mentorEmail}</td>
+                  <td className="px-6 py-4 font-bold text-emerald-400">₹{p.amount}</td>
+                  <td className="px-6 py-4 text-gray-300">₹{p.currentBalance}</td>
+                  <td className="px-6 py-4 text-gray-400 text-xs">
+                    {p.requestedAt ? new Date(p.requestedAt).toLocaleDateString() : '-'}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => handleApprovePayout(p.mentorId)}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold"
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRejectPayout(p.mentorId)}
+                        className="text-red-400 border-red-400 hover:bg-red-400/10"
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+
+  // 8. Reports / Complaints View
   const renderReports = () => (
     <div className="bg-[#0f0f0f] border border-white/5 rounded-2xl overflow-hidden">
       <div className="p-6 border-b border-white/10 flex justify-between items-center">
@@ -1444,6 +1560,7 @@ export function AdminDashboard({ onLogout }) {
       case 'approvals':  return renderApprovals();
       case 'analytics':  return renderAnalytics();
       case 'payments':   return renderPayments();
+      case 'payouts':   return renderPayouts();
       case 'reports':    return renderReports();
       case 'notifications': return renderNotifications();
       case 'settings':   return renderSettings();

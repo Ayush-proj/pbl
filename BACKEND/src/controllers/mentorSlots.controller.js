@@ -23,14 +23,34 @@ exports.getAvailableSlots = async (req, res, next) => {
 
     const slotDuration = sessionType === "demo" ? 15 : 60;
 
-    /* Generate all possible slots for the full day (00:00 - 23:59) */
-    const slots = [];
-    const dayEnd = 24 * 60; // 1440 minutes
-    let start = 0;
+    // Get day of week from date
+    const requestedDate = new Date(date);
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayName = dayNames[requestedDate.getDay()];
 
-    while (start + slotDuration <= dayEnd) {
-      slots.push(formatMinutes(start));
-      start += slotDuration;
+    // Find mentor's availability for this day
+    const dayAvailability = mentor.availability?.find(a => a.day === dayName);
+
+    // If no availability for this day, return empty slots
+    if (!dayAvailability) {
+      return res.json({
+        success: true,
+        date,
+        sessionType,
+        slots: [],
+        availability: null
+      });
+    }
+
+    // Generate slots only within mentor's availability window
+    const slots = [];
+    const startTime = parseTime(dayAvailability.startTime);
+    const endTime = parseTime(dayAvailability.endTime);
+    let currentSlot = startTime;
+
+    while (currentSlot + slotDuration <= endTime) {
+      slots.push(formatMinutes(currentSlot));
+      currentSlot += slotDuration;
     }
 
     /* Fetch existing bookings to exclude already-booked slots */
@@ -40,7 +60,7 @@ exports.getAvailableSlots = async (req, res, next) => {
       status: { $in: ["pending", "confirmed", "in-progress"] }
     });
 
-    /* 4️⃣ Remove conflicting slots */
+    /* Remove conflicting slots */
     const availableSlots = slots.filter(slot => {
       const slotStart = parseTime(slot);
       const slotEnd = slotStart + slotDuration;
@@ -57,7 +77,8 @@ exports.getAvailableSlots = async (req, res, next) => {
       success: true,
       date,
       sessionType,
-      slots: availableSlots
+      slots: availableSlots,
+      availability: dayAvailability
     });
 
   } catch (error) {

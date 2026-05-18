@@ -32,7 +32,7 @@ export function VerificationResult({ score, passed, onActivateProfile, onRetake,
                         className="mb-6 flex justify-center"
                     >
                         <span className="px-4 py-1.5 rounded-full bg-muted/30 dark:bg-white/5 border border-border dark:border-white/5 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                            Attempt {attempt} of {maxAttempts}
+                            {maxAttempts === Infinity ? `Attempt ${attempt}` : `Attempt ${attempt} of ${maxAttempts}`}
                         </span>
                     </motion.div>
 
@@ -148,7 +148,10 @@ export function VerificationResult({ score, passed, onActivateProfile, onRetake,
                                     You did not meet the minimum passing score of 70%.
                                 </p>
                                 <p className="text-sm text-muted-foreground">
-                                    You have {maxAttempts - attempt} attempt{maxAttempts - attempt !== 1 ? 's' : ''} remaining. Please review the material and try again to activate your profile.
+                                    {maxAttempts === Infinity 
+                                        ? "You can retake the test anytime. Please review the material and try again to activate your profile."
+                                        : `You have ${maxAttempts - attempt} attempt${maxAttempts - attempt !== 1 ? 's' : ''} remaining. Please review the material and try again to activate your profile.`
+                                    }
                                 </p>
                             </div>
                         )}

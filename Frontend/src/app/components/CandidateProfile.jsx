@@ -163,10 +163,34 @@ export function CandidateProfile({ onBack }) {
 
     if (loading) {
         return (
-            <div className="pt-24 pb-20 min-h-screen bg-background flex items-center justify-center">
-                <div className="text-center">
-                    <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
-                    <p className="text-muted-foreground font-medium">Loading...</p>
+            <div className="pt-24 pb-20 px-4 sm:px-6 min-h-screen bg-background">
+                <div className="max-w-2xl mx-auto space-y-6">
+                    {/* Profile Image Skeleton */}
+                    <div className="flex justify-center">
+                        <div className="w-24 h-24 rounded-full bg-muted dark:bg-white/10 animate-pulse" />
+                    </div>
+                    
+                    {/* Basic Info Skeleton */}
+                    <div className="bg-card dark:bg-white/5 border border-border dark:border-white/10 rounded-3xl p-8 space-y-4">
+                        <div className="space-y-3">
+                            <div className="h-4 w-16 bg-muted dark:bg-white/10 rounded animate-pulse" />
+                            <div className="h-10 w-full bg-muted dark:bg-white/10 rounded-xl animate-pulse" />
+                        </div>
+                        <div className="space-y-3">
+                            <div className="h-4 w-20 bg-muted dark:bg-white/10 rounded animate-pulse" />
+                            <div className="h-10 w-full bg-muted dark:bg-white/10 rounded-xl animate-pulse" />
+                        </div>
+                    </div>
+
+                    {/* Skills/Interests Skeleton */}
+                    <div className="bg-card dark:bg-white/5 border border-border dark:border-white/10 rounded-3xl p-8">
+                        <div className="h-6 w-28 bg-muted dark:bg-white/10 rounded animate-pulse mb-4" />
+                        <div className="flex flex-wrap gap-2">
+                            {[1, 2, 3, 4].map(i => (
+                                <div key={i} className="h-8 w-20 bg-muted dark:bg-white/10 rounded-full animate-pulse" />
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
         );

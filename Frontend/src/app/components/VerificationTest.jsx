@@ -250,6 +250,7 @@ export function VerificationTest({ questions, duration, onSubmit, onExit }) {
 
     const handleAutoSubmit = () => {
         exitFullscreen();
+        stopCamera();
         const results = {
             answers: Object.fromEntries(answers),
             markedForReview: Array.from(markedForReview),
@@ -339,46 +340,34 @@ export function VerificationTest({ questions, duration, onSubmit, onExit }) {
         </div>
     );
 
-    // AI Proctoring Simulation
+    // Camera for proctoring
     const videoRef = useRef(null);
     const [isCameraActive, setIsCameraActive] = useState(false);
-    const [behaviorWarning, setBehaviorWarning] = useState(null);
+    const cameraStreamRef = useRef(null);
 
-    // Start Camera
-    useEffect(() => {
-        const startCamera = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                    setIsCameraActive(true);
-                }
-            } catch (err) {
-                console.error("Camera/Mic access denied:", err);
-                toast.error("Proctoring Error: Camera access required for verification.");
-                // In real app, we might block the test here
+    const stopCamera = () => {
+        if (cameraStreamRef.current) {
+            cameraStreamRef.current.getTracks().forEach(track => track.stop());
+            cameraStreamRef.current = null;
+        }
+    };
+
+    const startCamera = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            cameraStreamRef.current = stream;
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                setIsCameraActive(true);
             }
-        };
+        } catch (err) {
+            console.error("Camera access denied:", err);
+        }
+    };
+
+    useEffect(() => {
         startCamera();
-
-        // Cleanup
-        return () => {
-            if (videoRef.current && videoRef.current.srcObject) {
-                const tracks = videoRef.current.srcObject.getTracks();
-                tracks.forEach(track => track.stop());
-            }
-        };
-    }, []);
-
-    // Simulate Behavior Detection (Random "Look Away" warnings)
-    useEffect(() => {
-        const checkBehavior = setInterval(() => {
-            if (Math.random() > 0.95) { // 5% chance every check
-                setBehaviorWarning("Suspicious behavior detected: Please keep your eyes on the screen.");
-                setTimeout(() => setBehaviorWarning(null), 4000);
-            }
-        }, 10000);
-        return () => clearInterval(checkBehavior);
+        return () => stopCamera();
     }, []);
 
     const OverlayWarning = () => (
@@ -430,26 +419,10 @@ export function VerificationTest({ questions, duration, onSubmit, onExit }) {
         </AnimatePresence>
     );
 
-    const BehaviorAlert = () => (
-        <AnimatePresence>
-            {behaviorWarning && (
-                <motion.div
-                    initial={{ y: -100, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -100, opacity: 0 }}
-                    className="fixed top-24 left-1/2 -translate-x-1/2 z-[60] bg-orange-500 text-white px-6 py-3 rounded-full font-bold shadow-xl flex items-center gap-3"
-                >
-                    <div className="w-2 h-2 rounded-full bg-white animate-ping" />
-                    {behaviorWarning}
-                </motion.div>
-            )}
-        </AnimatePresence>
-    );
-
     const ProctoringWidget = () => (
-        <div className="fixed bottom-24 right-6 z-40 hidden lg:block">
+        <div className="fixed top-20 right-4 z-40">
             <div className="relative group">
-                <div className="w-48 h-36 rounded-2xl bg-black overflow-hidden border-2 border-primary/20 shadow-2xl relative">
+                <div className="w-24 h-20 rounded-lg bg-black overflow-hidden border-2 border-primary/20 shadow-lg">
                     <video
                         ref={videoRef}
                         autoPlay
@@ -458,32 +431,13 @@ export function VerificationTest({ questions, duration, onSubmit, onExit }) {
                         className="w-full h-full object-cover transform scale-x-[-1]"
                     />
                     {!isCameraActive && (
-                        <div className="absolute inset-0 flex items-center justify-center text-muted-foreground flex-col gap-2">
-                            <div className="w-8 h-8 rounded-full border-2 border-t-primary animate-spin" />
-                            <span className="text-[10px] font-bold uppercase tracking-widest">Connecting AI...</span>
+                        <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                            <div className="w-6 h-6 rounded-full border-2 border-t-primary animate-spin" />
                         </div>
                     )}
-                    {/* Recording Indicator */}
-                    <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/50 backdrop-blur-md px-2 py-1 rounded-full">
-                        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                        <span className="text-[8px] font-black text-white uppercase tracking-wider">REC</span>
+                    <div className="absolute top-1 right-1 flex items-center gap-1 bg-black/50 backdrop-blur-md px-1.5 py-0.5 rounded-full">
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                     </div>
-                    {/* Audio Visualizer (Fake) */}
-                    <div className="absolute bottom-3 left-3 flex items-end gap-0.5 h-4">
-                        {[1, 2, 3, 4, 5].map(i => (
-                            <div
-                                key={i}
-                                className="w-1 bg-emerald-500 rounded-full animate-pulse"
-                                style={{
-                                    height: `${Math.random() * 100}%`,
-                                    animationDuration: `${0.5 + Math.random()}s`
-                                }}
-                            />
-                        ))}
-                    </div>
-                </div>
-                <div className="absolute -top-12 right-0 bg-card border border-border px-3 py-1.5 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">AI Proctoring Active</span>
                 </div>
             </div>
         </div>
@@ -513,13 +467,12 @@ export function VerificationTest({ questions, duration, onSubmit, onExit }) {
     return (
         <div
             ref={containerRef}
-            className="fixed inset-0 bg-background z-50 overflow-hidden"
+            className="fixed inset-0 bg-background z-50 overflow-y-auto"
             onCopy={handleCopy}
             onPaste={handlePaste}
             onContextMenu={handleContextMenu}
         >
             {/* Proctoring Elements */}
-            <BehaviorAlert />
             <OverlayWarning />
             <ProctoringWidget />
 
@@ -649,7 +602,7 @@ export function VerificationTest({ questions, duration, onSubmit, onExit }) {
                                                 </div>
                                                 <div className="flex-1">
                                                     <span className="text-xs sm:text-sm font-bold text-muted-foreground mb-1 block">
-                                                        Option {option.id.toUpperCase()}
+                                                        Option {option.label}
                                                     </span>
                                                     <p className="text-sm sm:text-base font-medium">{option.text}</p>
                                                 </div>

@@ -22,6 +22,35 @@ import useAuthStore from '../store/authStore';
 
 const DAY_OPTIONS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+const createDefaultAvailability = () => [
+    { day: 'Monday', startTime: '09:00', endTime: '17:00', enabled: true },
+    { day: 'Tuesday', startTime: '09:00', endTime: '17:00', enabled: true },
+    { day: 'Wednesday', startTime: '09:00', endTime: '17:00', enabled: true },
+    { day: 'Thursday', startTime: '09:00', endTime: '17:00', enabled: true },
+    { day: 'Friday', startTime: '09:00', endTime: '17:00', enabled: true },
+    { day: 'Saturday', startTime: '09:00', endTime: '17:00', enabled: true },
+    { day: 'Sunday', startTime: '09:00', endTime: '17:00', enabled: true },
+];
+
+const normalizeAvailability = (availability) => {
+    const defaultAvail = createDefaultAvailability();
+    if (!availability || !Array.isArray(availability) || availability.length === 0) {
+        return defaultAvail;
+    }
+    return defaultAvail.map(defaultDay => {
+        const existing = availability.find(a => a.day === defaultDay.day);
+        if (existing) {
+            return {
+                ...defaultDay,
+                startTime: existing.startTime || defaultDay.startTime,
+                endTime: existing.endTime || defaultDay.endTime,
+                enabled: existing.enabled !== undefined ? existing.enabled : true
+            };
+        }
+        return defaultDay;
+    });
+};
+
 function formatTime(timeStr) {
     if (!timeStr) return '';
     const [h, m] = timeStr.split(':').map(Number);
@@ -46,7 +75,7 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
         experience: '',
         languages: ['English'],
         hourlyRate: 500,
-        availability: [],
+        availability: createDefaultAvailability(),
         verified: false
     });
 
@@ -65,7 +94,7 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
             experience: data.experience ? String(data.experience) : '',
             languages: data.languages || ['English'],
             hourlyRate: data.hourlyRate || 500,
-            availability: data.availability || [],
+            availability: normalizeAvailability(data.availability),
             verified: data.verified || false
         });
     };
@@ -141,15 +170,12 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
     };
 
     const toggleDay = (day) => {
-        const exists = form.availability.find(a => a.day === day);
-        if (exists) {
-            setForm(prev => ({ ...prev, availability: prev.availability.filter(a => a.day !== day) }));
-        } else {
-            setForm(prev => ({
-                ...prev,
-                availability: [...prev.availability, { day, startTime: '09:00', endTime: '17:00' }]
-            }));
-        }
+        setForm(prev => ({
+            ...prev,
+            availability: prev.availability.map(a =>
+                a.day === day ? { ...a, enabled: !a.enabled } : a
+            )
+        }));
     };
 
     const updateSlot = (day, field, value) => {
@@ -168,7 +194,11 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
         }
         setSaving(true);
         try {
-            await onSaveProfile(form);
+            const availabilityForBackend = form.availability
+                .filter(a => a.enabled)
+                .map(({ day, startTime, endTime }) => ({ day, startTime, endTime }));
+            const formData = { ...form, availability: availabilityForBackend };
+            await onSaveProfile(formData);
             toast.success('Profile saved successfully');
         } catch (err) {
             toast.error('Failed to save profile');
@@ -179,10 +209,44 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
 
     if (loading) {
         return (
-            <div className="pt-24 pb-20 min-h-screen bg-background flex items-center justify-center">
-                <div className="text-center">
-                    <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
-                    <p className="text-muted-foreground font-medium">Loading profile...</p>
+            <div className="pt-24 pb-20 px-4 sm:px-6 min-h-screen bg-background">
+                <div className="max-w-3xl mx-auto space-y-6">
+                    {/* Profile Image Skeleton */}
+                    <div className="flex justify-center">
+                        <div className="w-24 h-24 rounded-full bg-muted dark:bg-white/10 animate-pulse" />
+                    </div>
+                    
+                    {/* Basic Info Skeleton */}
+                    <div className="bg-card dark:bg-white/5 border border-border dark:border-white/10 rounded-3xl p-8 space-y-4">
+                        <div className="space-y-3">
+                            <div className="h-4 w-20 bg-muted dark:bg-white/10 rounded animate-pulse" />
+                            <div className="h-10 w-full bg-muted dark:bg-white/10 rounded-xl animate-pulse" />
+                        </div>
+                        <div className="space-y-3">
+                            <div className="h-4 w-16 bg-muted dark:bg-white/10 rounded animate-pulse" />
+                            <div className="h-10 w-full bg-muted dark:bg-white/10 rounded-xl animate-pulse" />
+                        </div>
+                    </div>
+
+                    {/* Skills Skeleton */}
+                    <div className="bg-card dark:bg-white/5 border border-border dark:border-white/10 rounded-3xl p-8">
+                        <div className="h-6 w-24 bg-muted dark:bg-white/10 rounded animate-pulse mb-4" />
+                        <div className="flex flex-wrap gap-2">
+                            {[1, 2, 3].map(i => (
+                                <div key={i} className="h-8 w-24 bg-muted dark:bg-white/10 rounded-full animate-pulse" />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Availability Skeleton */}
+                    <div className="bg-card dark:bg-white/5 border border-border dark:border-white/10 rounded-3xl p-8">
+                        <div className="h-6 w-32 bg-muted dark:bg-white/10 rounded animate-pulse mb-4" />
+                        <div className="space-y-3">
+                            {[1, 2, 3, 4].map(i => (
+                                <div key={i} className="h-12 bg-muted dark:bg-white/10 rounded-xl animate-pulse" />
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
         );
@@ -409,35 +473,42 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                                 <Clock className="w-3.5 h-3.5 inline mr-1" />
                                 Availability
                             </label>
-                            <p className="text-xs text-muted-foreground mb-3">Select days and set time ranges when you're available for sessions.</p>
-                            <div className="space-y-2">
+                            <p className="text-xs text-muted-foreground mb-3">Toggle days on/off and set your working hours.</p>
+                            <div className="grid grid-cols-1 gap-2">
                                 {DAY_OPTIONS.map(day => {
                                     const slot = form.availability.find(a => a.day === day);
+                                    const isEnabled = slot?.enabled ?? true;
                                     return (
-                                        <div key={day} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 dark:bg-white/5 border border-border">
-                                            <button
-                                                type="button"
-                                                onClick={() => toggleDay(day)}
-                                                className={`w-24 text-left text-sm font-bold capitalize transition-colors ${slot ? 'text-primary' : 'text-muted-foreground'}`}
-                                            >
-                                                {slot ? `✓ ${day.slice(0, 3)}` : day.slice(0, 3)}
-                                            </button>
-                                            {slot && (
+                                        <div key={day} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${isEnabled ? 'bg-muted/30 dark:bg-white/5 border-border' : 'bg-muted/10 border-border/50 opacity-60'}`}>
+                                            <label className="flex items-center gap-2 cursor-pointer min-w-[140px]">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isEnabled}
+                                                    onChange={() => toggleDay(day)}
+                                                    className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
+                                                />
+                                                <span className={`text-sm font-bold capitalize ${isEnabled ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                                    {day}
+                                                </span>
+                                            </label>
+                                            {isEnabled ? (
                                                 <div className="flex items-center gap-2 flex-1">
                                                     <input
                                                         type="time"
-                                                        value={slot.startTime}
+                                                        value={slot?.startTime || '09:00'}
                                                         onChange={(e) => updateSlot(day, 'startTime', e.target.value)}
                                                         className="h-9 px-2 rounded-lg bg-background border border-border text-sm font-medium outline-none focus:border-primary/50"
                                                     />
                                                     <span className="text-muted-foreground text-xs">to</span>
                                                     <input
                                                         type="time"
-                                                        value={slot.endTime}
+                                                        value={slot?.endTime || '17:00'}
                                                         onChange={(e) => updateSlot(day, 'endTime', e.target.value)}
                                                         className="h-9 px-2 rounded-lg bg-background border border-border text-sm font-medium outline-none focus:border-primary/50"
                                                     />
                                                 </div>
+                                            ) : (
+                                                <span className="text-xs text-muted-foreground">Not available</span>
                                             )}
                                         </div>
                                     );
