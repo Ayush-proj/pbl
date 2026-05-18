@@ -3,9 +3,23 @@ const { Server } = require('socket.io');
 let io;
 
 function initSocket(server) {
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  const allowedOrigins = [
+    frontendUrl,
+    "http://localhost:5173",
+    "http://localhost:5175",
+    "https://localhost:5173",
+    "https://localhost:5175"
+  ];
+  
+  // Add production domain if HTTPS
+  if (frontendUrl.startsWith("https://") && !frontendUrl.includes("localhost")) {
+    allowedOrigins.push(frontendUrl);
+  }
+  
   io = new Server(server, {
     cors: {
-      origin: process.env.FRONTEND_URL || "*",
+      origin: allowedOrigins,
       methods: ["GET", "POST"],
       credentials: true
     },
