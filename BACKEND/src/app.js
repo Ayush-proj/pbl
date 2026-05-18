@@ -6,17 +6,30 @@ const app = express();
 
 app.set('trust proxy', 1);
 
-app.use(cors({
-  origin: [
-    "https://mentorconnect-hazel.vercel.app",
-    "https://*.vercel.app",
-    "http://localhost:5173",
-    "http://localhost:5175"
-  ],
+const allowedOrigins = [
+  "https://mentorconnect-hazel.vercel.app",
+  /\.vercel\.app$/,
+  "http://localhost:5173",
+  "http://localhost:5175",
+  "http://localhost:3000",
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.some(o => 
+      typeof o === 'string' ? o === origin : o.test(origin)
+    )) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+};
+
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
