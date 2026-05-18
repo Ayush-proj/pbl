@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import useAuthStore from '../store/authStore';
+import { useProfileEditStore } from '../store/profileEditStore';
 import { getCandidateProfile, createCandidateProfile, uploadCandidateProfileImage } from '../services/api';
 import { toast } from 'sonner';
+import { cn } from './ui/utils';
 import {
     User,
     Mail,
@@ -20,10 +22,11 @@ import {
 
 export function CandidateProfile({ onBack }) {
     const { user: authUser, candidateProfile: storeCandidateProfile } = useAuthStore();
+    const { isEditing, editingRole, toggleEditing } = useProfileEditStore();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
-    const [viewMode, setViewMode] = useState(false);
+    const isCurrentlyEditing = isEditing && editingRole === 'candidate';
 
     const [form, setForm] = useState({
         name: authUser?.name || '',
@@ -50,7 +53,6 @@ export function CandidateProfile({ onBack }) {
                     experienceLevel: storeCandidateProfile.experienceLevel || 'beginner'
                 });
                 if (storeCandidateProfile.interests?.length || storeCandidateProfile.goals || storeCandidateProfile.education) {
-                    setViewMode(true);
                     setSaved(true);
                 }
                 setLoading(false);
@@ -73,7 +75,6 @@ export function CandidateProfile({ onBack }) {
                 setForm(loaded);
                 useAuthStore.getState().setCandidateProfile(loaded);
                 if (p.interests?.length || p.goals || p.education) {
-                    setViewMode(true);
                     setSaved(true);
                 }
             } catch {
@@ -126,7 +127,6 @@ export function CandidateProfile({ onBack }) {
         }
         setSaving(true);
 
-        // Optimistic: immediately save to Zustand store for persistence
         const profileToSave = {
             name: form.name,
             email: form.email,
@@ -152,12 +152,11 @@ export function CandidateProfile({ onBack }) {
             await createCandidateProfile(payload);
             toast.success('Profile saved successfully');
         } catch (err) {
-            // Data already saved optimistically in Zustand, just warn
             console.warn('API save failed, using local data');
         } finally {
             setSaving(false);
             setSaved(true);
-            setViewMode(true);
+            useProfileEditStore.getState().stopEditing();
         }
     };
 
@@ -196,109 +195,8 @@ export function CandidateProfile({ onBack }) {
         );
     }
 
-    if (viewMode && saved) {
+    if (loading) {
         return (
-            <div className="pt-24 pb-20 px-4 sm:px-6 min-h-screen bg-background">
-                <div className="max-w-2xl mx-auto">
-                    <button
-                        onClick={onBack}
-                        className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-8 group"
-                    >
-                        <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                        <span className="font-medium">Back</span>
-                    </button>
-
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-card dark:bg-white/5 border border-border dark:border-white/10 rounded-3xl p-8 sm:p-12 shadow-xl"
-                    >
-                        <div className="text-center mb-10">
-                            <div className="w-24 h-24 rounded-full mx-auto mb-4 bg-muted relative overflow-hidden border-4 border-border">
-                                {form.profileImage ? (
-                                    <img src={form.profileImage} alt="" className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                        <User className="w-10 h-10 text-muted-foreground" />
-                                    </div>
-                                )}
-                            </div>
-                            <h1 className="text-3xl font-black tracking-tight">Student Profile</h1>
-                            <p className="text-muted-foreground font-medium mt-1 flex items-center justify-center gap-2">
-                                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                                Profile complete
-                            </p>
-                        </div>
-
-                        <div className="space-y-5">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="p-4 rounded-xl bg-muted/30 border border-border">
-                                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Full Name</p>
-                                    <p className="font-bold">{form.name}</p>
-                                </div>
-                                <div className="p-4 rounded-xl bg-muted/30 border border-border">
-                                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Email</p>
-                                    <p className="font-bold">{form.email}</p>
-                                </div>
-                            </div>
-
-                            {form.education && (
-                                <div className="p-4 rounded-xl bg-muted/30 border border-border">
-                                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Education</p>
-                                    <p className="font-bold">{form.education}</p>
-                                </div>
-                            )}
-
-                            {form.experienceLevel && (
-                                <div className="p-4 rounded-xl bg-muted/30 border border-border">
-                                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Experience Level</p>
-                                    <p className="font-bold capitalize">{form.experienceLevel}</p>
-                                </div>
-                            )}
-
-                            {form.goals && (
-                                <div className="p-4 rounded-xl bg-muted/30 border border-border">
-                                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Learning Goals</p>
-                                    <p className="font-medium">{form.goals}</p>
-                                </div>
-                            )}
-
-                            {form.interests.length > 0 && (
-                                <div className="p-4 rounded-xl bg-muted/30 border border-border">
-                                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Interests / Skills</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        {form.interests.map((s, i) => (
-                                            <span key={i} className="px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-sm font-medium text-primary">
-                                                {s}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="flex gap-4 mt-10">
-                            <button
-                                onClick={onBack}
-                                className="flex-1 h-14 rounded-xl border-2 border-border font-bold text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-all"
-                            >
-                                Go to Dashboard
-                            </button>
-                            <button
-                                onClick={() => setViewMode(false)}
-                                className="flex-1 h-14 rounded-xl bg-primary text-primary-foreground font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:shadow-xl transition-all"
-                            >
-                                <Edit3 className="w-5 h-5" />
-                                Edit Profile
-                            </button>
-                        </div>
-                    </motion.div>
-                </div>
-            </div>
-        );
-    }
-
-    return (
         <div className="pt-24 pb-20 px-4 sm:px-6 min-h-screen bg-background">
             <div className="max-w-2xl mx-auto">
                 <button
@@ -314,7 +212,7 @@ export function CandidateProfile({ onBack }) {
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-card dark:bg-white/5 border border-border dark:border-white/10 rounded-3xl p-8 sm:p-12 shadow-xl"
                 >
-                    <div className="text-center mb-10">
+                    <div className="text-center mb-8">
                         <div className="w-24 h-24 rounded-full mx-auto mb-4 bg-muted relative overflow-hidden border-4 border-border">
                             {form.profileImage ? (
                                 <img src={form.profileImage} alt="" className="w-full h-full object-cover" />
@@ -328,8 +226,33 @@ export function CandidateProfile({ onBack }) {
                                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                             </label>
                         </div>
+                        <div className="flex justify-center gap-3 mb-4">
+                            {isCurrentlyEditing ? (
+                                <button
+                                    onClick={handleSave}
+                                    disabled={saving}
+                                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-500 text-white font-bold hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                                >
+                                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                    Save Changes
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => toggleEditing('candidate')}
+                                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary font-bold hover:bg-primary/20 transition-colors"
+                                >
+                                    <Edit3 className="w-4 h-4" />
+                                    Edit Profile
+                                </button>
+                            )}
+                        </div>
                         <h1 className="text-3xl font-black tracking-tight">Student Profile</h1>
-                        <p className="text-muted-foreground font-medium mt-1">Fill in your details to get started</p>
+                        {saved && !isCurrentlyEditing && (
+                            <p className="text-muted-foreground font-medium mt-1 flex items-center justify-center gap-2">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                Profile complete
+                            </p>
+                        )}
                     </div>
 
                     <div className="space-y-6">
@@ -340,7 +263,13 @@ export function CandidateProfile({ onBack }) {
                                     type="text"
                                     value={form.name}
                                     onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
-                                    className="w-full h-12 px-4 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors"
+                                    readOnly={!isCurrentlyEditing}
+                                    className={cn(
+                                        "w-full h-12 px-4 rounded-xl border outline-none font-medium transition-colors",
+                                        isCurrentlyEditing
+                                            ? "bg-background border-border focus:border-primary/50"
+                                            : "bg-muted/50 border-border cursor-not-allowed"
+                                    )}
                                     placeholder="Your name"
                                 />
                             </div>
@@ -361,7 +290,13 @@ export function CandidateProfile({ onBack }) {
                             <select
                                 value={form.education}
                                 onChange={(e) => setForm(prev => ({ ...prev, education: e.target.value }))}
-                                className="w-full h-12 px-4 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors"
+                                disabled={!isCurrentlyEditing}
+                                className={cn(
+                                    "w-full h-12 px-4 rounded-xl border outline-none font-medium transition-colors",
+                                    isCurrentlyEditing
+                                        ? "bg-background border-border focus:border-primary/50"
+                                        : "bg-muted/50 border-border cursor-not-allowed"
+                                )}
                             >
                                 <option value="">Select education</option>
                                 <option value="High School">High School</option>
@@ -379,12 +314,18 @@ export function CandidateProfile({ onBack }) {
                                     <button
                                         key={level}
                                         type="button"
-                                        onClick={() => setForm(prev => ({ ...prev, experienceLevel: level }))}
-                                        className={`flex-1 h-12 rounded-xl border-2 font-bold capitalize transition-all ${
-                                            form.experienceLevel === level
-                                                ? 'border-primary bg-primary/10 text-primary'
-                                                : 'border-border text-muted-foreground hover:border-primary/30'
-                                        }`}
+                                        onClick={() => isCurrentlyEditing && setForm(prev => ({ ...prev, experienceLevel: level }))}
+                                        disabled={!isCurrentlyEditing}
+                                        className={cn(
+                                            "flex-1 h-12 rounded-xl border-2 font-bold capitalize transition-all",
+                                            isCurrentlyEditing
+                                                ? form.experienceLevel === level
+                                                    ? 'border-primary bg-primary/10 text-primary'
+                                                    : 'border-border text-muted-foreground hover:border-primary/30'
+                                                : form.experienceLevel === level
+                                                    ? 'border-primary bg-primary/10 text-primary'
+                                                    : 'border-border text-muted-foreground/30 cursor-not-allowed'
+                                        )}
                                     >
                                         {level}
                                     </button>
@@ -400,7 +341,13 @@ export function CandidateProfile({ onBack }) {
                             <textarea
                                 value={form.goals}
                                 onChange={(e) => setForm(prev => ({ ...prev, goals: e.target.value }))}
-                                className="w-full h-28 px-4 py-3 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors resize-none"
+                                readOnly={!isCurrentlyEditing}
+                                className={cn(
+                                    "w-full h-28 px-4 py-3 rounded-xl border outline-none font-medium transition-colors resize-none",
+                                    isCurrentlyEditing
+                                        ? "bg-background border-border focus:border-primary/50"
+                                        : "bg-muted/50 border-border cursor-not-allowed"
+                                )}
                                 placeholder="What do you want to learn or achieve?"
                                 maxLength={500}
                             />
@@ -416,46 +363,33 @@ export function CandidateProfile({ onBack }) {
                                 {form.interests.map((s, i) => (
                                     <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-sm font-medium text-primary">
                                         {s}
-                                        <button onClick={() => removeInterest(i)} className="hover:text-rose-500 transition-colors">
-                                            <X className="w-3 h-3" />
-                                        </button>
+                                        {isCurrentlyEditing && (
+                                            <button onClick={() => removeInterest(i)} className="hover:text-rose-500 transition-colors">
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        )}
                                     </span>
                                 ))}
                             </div>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={newInterest}
-                                    onChange={(e) => setNewInterest(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addInterest(); } }}
-                                    className="flex-1 h-12 px-4 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors"
-                                    placeholder="Add an interest and press Enter"
-                                />
-                                <button
-                                    onClick={addInterest}
-                                    className="px-4 rounded-xl bg-primary/10 border border-primary/20 text-primary font-bold hover:bg-primary/20 transition-colors"
-                                >
-                                    Add
-                                </button>
-                            </div>
+                            {isCurrentlyEditing && (
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={newInterest}
+                                        onChange={(e) => setNewInterest(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addInterest(); } }}
+                                        className="flex-1 h-12 px-4 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors"
+                                        placeholder="Add an interest and press Enter"
+                                    />
+                                    <button
+                                        onClick={addInterest}
+                                        className="px-4 rounded-xl bg-primary/10 border border-primary/20 text-primary font-bold hover:bg-primary/20 transition-colors"
+                                    >
+                                        Add
+                                    </button>
+                                </div>
+                            )}
                         </div>
-                    </div>
-
-                    <div className="flex gap-4 mt-10">
-                        <button
-                            onClick={onBack}
-                            className="flex-1 h-14 rounded-xl border-2 border-border font-bold text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-all"
-                        >
-                            {saved ? 'Go to Dashboard' : 'Skip'}
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            disabled={saving}
-                            className="flex-1 h-14 rounded-xl bg-primary text-primary-foreground font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:shadow-xl transition-all disabled:opacity-50"
-                        >
-                            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                            {saving ? 'Saving...' : 'Save Profile'}
-                        </button>
                     </div>
                 </motion.div>
             </div>

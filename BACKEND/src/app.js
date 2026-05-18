@@ -10,8 +10,11 @@ const allowedOrigins = [
   "https://mentorconnect-hazel.vercel.app",
   /\.vercel\.app$/,
   "http://localhost:5173",
+  "https://localhost:5173",
   "http://localhost:5175",
+  "https://localhost:5175",
   "http://localhost:3000",
+  "https://localhost:3000",
 ];
 
 const corsOptions = {

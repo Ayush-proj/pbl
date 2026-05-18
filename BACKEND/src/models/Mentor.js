@@ -79,9 +79,17 @@ const mentorSchema = new mongoose.Schema(
       {
         day: { type: String },
         startTime: { type: String, default: '09:00' },
-        endTime: { type: String, default: '17:00' }
+        endTime: { type: String, default: '17:00' },
+        enabled: { type: Boolean, default: true }
       }
     ],
+    
+    status: {
+      type: String,
+      enum: ['active', 'inactive', 'suspended'],
+      default: 'active'
+    },
+    
     averageRating: {
   type: Number,
   default: 0

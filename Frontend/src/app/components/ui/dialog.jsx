@@ -49,6 +49,8 @@ function DialogOverlay({
 function DialogContent({
   className,
   children,
+  title,
+  description,
   ...props
 }) {
   return (
@@ -62,6 +64,24 @@ function DialogContent({
         )}
         {...props}
       >
+        {title && (
+          <div className="flex flex-col space-y-1.5 text-center sm:text-left">
+            <DialogPrimitive.Title
+              data-slot="dialog-title"
+              className="text-lg leading-none font-semibold"
+            >
+              {title}
+            </DialogPrimitive.Title>
+            {description && (
+              <DialogPrimitive.Description
+                data-slot="dialog-description"
+                className="text-sm text-muted-foreground"
+              >
+                {description}
+              </DialogPrimitive.Description>
+            )}
+          </div>
+        )}
         {children}
         <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
           <XIcon />

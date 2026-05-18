@@ -41,6 +41,9 @@ function initSocket(server) {
       socket.join(`user:${userId}`);
     }
 
+    // Track when each user joined a room
+    const roomJoinTimestamps = new Map(); // roomId -> joinTime
+
     // ─── JOIN VIDEO ROOM ────────────────────────────────────────
     socket.on('join:room', (roomId) => {
       socket.join(roomId);
@@ -54,7 +57,8 @@ function initSocket(server) {
       // Add user info to room (avoid duplicates)
       const existingIndex = room.users.findIndex(u => u.socketId === socket.id);
       if (existingIndex === -1) {
-        room.users.push({ socketId: socket.id, userId, userType });
+        roomJoinTimestamps.set(socket.id + roomId, Date.now());
+        room.users.push({ socketId: socket.id, userId, userType, joinTime: Date.now() });
       }
 
       console.log(`📹 ${userType} (${userId}) joined room: ${roomId} | Users in room: ${room.users.length} | Socket: ${socket.id}`);
@@ -66,17 +70,36 @@ function initSocket(server) {
         users: room.users.map(u => ({ userId: u.userId, userType: u.userType }))
       });
 
-      // If this is the SECOND user, tell the FIRST user to create the offer
-      // The first user becomes the "initiator"
+      // If this is the SECOND user, tell BOTH users that room is ready
+      // The first user (earliest join time) creates the offer
       if (room.users.length === 2) {
-        const initiator = room.users[0]; // First user creates the offer
-        console.log(`🤝 Room ${roomId} is FULL (2 users). Telling ${initiator.userType} (socket: ${initiator.socketId}) to create WebRTC offer...`);
+        // Sort by joinTime to find the initiator
+        const sortedUsers = [...room.users].sort((a, b) => (a.joinTime || 0) - (b.joinTime || 0));
+        const initiator = sortedUsers[0];
+        
+        console.log(`🤝 Room ${roomId} is FULL (2 users). Initiator: ${initiator.userType} (socket: ${initiator.socketId})`);
+        
+        // Tell the initiator to create the offer
         io.to(initiator.socketId).emit('room:ready', {
           roomId,
           shouldCreateOffer: true
         });
-      } else {
+        
+        // Also notify the second user that room is ready (but don't create offer)
+        const secondUser = sortedUsers[1];
+        io.to(secondUser.socketId).emit('room:ready', {
+          roomId,
+          shouldCreateOffer: false,
+          waitingForPeer: true
+        });
+      } else if (room.users.length === 1) {
         console.log(`⏳ Room ${roomId} has ${room.users.length} user(s). Waiting for second participant...`);
+        // Tell the first user to wait
+        io.to(room.users[0].socketId).emit('room:ready', {
+          roomId,
+          shouldCreateOffer: false,
+          waitingForPeer: true
+        });
       }
     });
 

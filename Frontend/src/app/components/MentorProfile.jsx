@@ -15,10 +15,14 @@ import {
     ChevronLeft,
     DollarSign,
     Info,
-    ShieldCheck
+    ShieldCheck,
+    Edit3
 } from 'lucide-react';
 import { getMentorProfile, uploadMentorProfileImage } from '../services/api';
 import useAuthStore from '../store/authStore';
+import { useProfileEditStore } from '../store/profileEditStore';
+import { useMentorStore } from '../store/mentorStore';
+import { cn } from './ui/utils';
 
 const DAY_OPTIONS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -37,8 +41,17 @@ const normalizeAvailability = (availability) => {
     if (!availability || !Array.isArray(availability) || availability.length === 0) {
         return defaultAvail;
     }
+    
+    // Create a map of existing availability by day
+    const availMap = {};
+    availability.forEach(a => {
+        if (a && a.day) {
+            availMap[a.day] = a;
+        }
+    });
+    
     return defaultAvail.map(defaultDay => {
-        const existing = availability.find(a => a.day === defaultDay.day);
+        const existing = availMap[defaultDay.day];
         if (existing) {
             return {
                 ...defaultDay,
@@ -61,8 +74,10 @@ function formatTime(timeStr) {
 
 export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, startEditing, onTakeVerification }) {
     const { user: authUser, mentorProfile: storeMentorProfile } = useAuthStore();
+    const { isEditing, editingRole, toggleEditing } = useProfileEditStore();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const isCurrentlyEditing = isOwnProfile && isEditing && editingRole === 'mentor';
 
     const [form, setForm] = useState({
         name: '',
@@ -83,6 +98,10 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
     const [newLang, setNewLang] = useState('');
 
     const populateForm = (data) => {
+        console.log('📋 Populating form with data:', JSON.stringify(data?.availability));
+        const normalizedAvail = normalizeAvailability(data?.availability);
+        console.log('📋 Normalized availability:', JSON.stringify(normalizedAvail));
+        
         setForm({
             name: data.name || data.userId?.name || authUser?.name || '',
             email: data.email || data.userId?.email || authUser?.email || '',
@@ -94,34 +113,30 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
             experience: data.experience ? String(data.experience) : '',
             languages: data.languages || ['English'],
             hourlyRate: data.hourlyRate || 500,
-            availability: normalizeAvailability(data.availability),
+            availability: normalizedAvail,
             verified: data.verified || false
         });
     };
 
     useEffect(() => {
-        if (isOwnProfile) {
-            if (storeMentorProfile && storeMentorProfile.name) {
-                populateForm(storeMentorProfile);
-                setLoading(false);
-                return;
-            }
-            setLoading(true);
-            getMentorProfile()
-                .then(res => populateForm(res.data.mentor))
-                .catch(() => {
-                    if (storeMentorProfile) {
-                        populateForm(storeMentorProfile);
-                    }
-                })
-                .finally(() => setLoading(false));
-        } else if (mentor) {
-            populateForm(mentor);
-            setLoading(false);
-        } else {
-            setLoading(false);
-        }
-    }, [isOwnProfile, mentor, storeMentorProfile]);
+        // ALWAYS fetch fresh data from server for own profile
+        setLoading(true);
+        getMentorProfile()
+            .then(res => {
+                console.log('📥 Fresh mentor profile:', JSON.stringify(res.data.mentor?.availability));
+                populateForm(res.data.mentor);
+                // Update authStore with fresh data
+                useAuthStore.getState().setMentorProfile(res.data.mentor);
+            })
+            .catch(err => {
+                console.error('Failed to fetch mentor profile:', err);
+                // Try to use store data as fallback
+                if (storeMentorProfile) {
+                    populateForm(storeMentorProfile);
+                }
+            })
+            .finally(() => setLoading(false));
+    }, [isOwnProfile, storeMentorProfile]);
 
     const handleImageUpload = async (e) => {
         const file = e.target.files?.[0];
@@ -198,7 +213,10 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                 .filter(a => a.enabled)
                 .map(({ day, startTime, endTime }) => ({ day, startTime, endTime }));
             const formData = { ...form, availability: availabilityForBackend };
-            await onSaveProfile(formData);
+            const savedProfile = await onSaveProfile(formData);
+            // Update mentorStore with new availability
+            useMentorStore.getState().setMentor(savedProfile._id, savedProfile);
+            useProfileEditStore.getState().stopEditing();
         } catch (err) {
             // Error already shown in App.jsx
         } finally {
@@ -267,7 +285,7 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-card dark:bg-white/5 border border-border dark:border-white/10 rounded-3xl p-8 sm:p-12 shadow-xl"
                 >
-                    <div className="text-center mb-10">
+                    <div className="text-center mb-6">
                         <div className="w-24 h-24 rounded-full mx-auto mb-4 bg-muted relative overflow-hidden border-4 border-border">
                             {form.profileImage ? (
                                 <img src={form.profileImage} alt="" className="w-full h-full object-cover" />
@@ -281,6 +299,28 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                             </label>
                         </div>
+                        {isOwnProfile && (
+                            <div className="flex justify-center gap-3 mb-4">
+                                {isCurrentlyEditing ? (
+                                    <button
+                                        onClick={handleSave}
+                                        disabled={saving}
+                                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-500 text-white font-bold hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                                    >
+                                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                        Save Changes
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => toggleEditing('mentor')}
+                                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary font-bold hover:bg-primary/20 transition-colors"
+                                    >
+                                        <Edit3 className="w-4 h-4" />
+                                        Edit Profile
+                                    </button>
+                                )}
+                            </div>
+                        )}
                         <h1 className="text-3xl font-black tracking-tight">Mentor Profile</h1>
                         <p className="text-muted-foreground font-medium mt-1">
                             {form.verified
@@ -313,7 +353,13 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                                     type="text"
                                     value={form.name}
                                     onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
-                                    className="w-full h-12 px-4 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors"
+                                    readOnly={!isCurrentlyEditing}
+                                    className={cn(
+                                        "w-full h-12 px-4 rounded-xl border outline-none font-medium transition-colors",
+                                        isCurrentlyEditing
+                                            ? "bg-background border-border focus:border-primary/50"
+                                            : "bg-muted/50 border-border cursor-not-allowed"
+                                    )}
                                     placeholder="Your name"
                                 />
                             </div>
@@ -333,7 +379,13 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                                     type="text"
                                     value={form.title}
                                     onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))}
-                                    className="w-full h-12 px-4 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors"
+                                    readOnly={!isCurrentlyEditing}
+                                    className={cn(
+                                        "w-full h-12 px-4 rounded-xl border outline-none font-medium transition-colors",
+                                        isCurrentlyEditing
+                                            ? "bg-background border-border focus:border-primary/50"
+                                            : "bg-muted/50 border-border cursor-not-allowed"
+                                    )}
                                     placeholder="e.g. Senior Full Stack Developer"
                                 />
                             </div>
@@ -343,7 +395,13 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                                     type="text"
                                     value={form.company}
                                     onChange={(e) => setForm(prev => ({ ...prev, company: e.target.value }))}
-                                    className="w-full h-12 px-4 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors"
+                                    readOnly={!isCurrentlyEditing}
+                                    className={cn(
+                                        "w-full h-12 px-4 rounded-xl border outline-none font-medium transition-colors",
+                                        isCurrentlyEditing
+                                            ? "bg-background border-border focus:border-primary/50"
+                                            : "bg-muted/50 border-border cursor-not-allowed"
+                                    )}
                                     placeholder="e.g. Google"
                                 />
                             </div>
@@ -357,7 +415,13 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                             <textarea
                                 value={form.bio}
                                 onChange={(e) => setForm(prev => ({ ...prev, bio: e.target.value }))}
-                                className="w-full h-28 px-4 py-3 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors resize-none"
+                                readOnly={!isCurrentlyEditing}
+                                className={cn(
+                                    "w-full h-28 px-4 py-3 rounded-xl border outline-none font-medium transition-colors resize-none",
+                                    isCurrentlyEditing
+                                        ? "bg-background border-border focus:border-primary/50"
+                                        : "bg-muted/50 border-border cursor-not-allowed"
+                                )}
                                 placeholder="Tell students about yourself and your teaching style..."
                                 maxLength={500}
                             />
@@ -370,7 +434,13 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                                 <select
                                     value={form.experience}
                                     onChange={(e) => setForm(prev => ({ ...prev, experience: e.target.value }))}
-                                    className="w-full h-12 px-4 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors"
+                                    disabled={!isCurrentlyEditing}
+                                    className={cn(
+                                        "w-full h-12 px-4 rounded-xl border outline-none font-medium transition-colors",
+                                        isCurrentlyEditing
+                                            ? "bg-background border-border focus:border-primary/50"
+                                            : "bg-muted/50 border-border cursor-not-allowed"
+                                    )}
                                 >
                                     <option value="">Select experience</option>
                                     <option value="1">1 year</option>
@@ -394,7 +464,13 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                                     type="number"
                                     value={form.hourlyRate}
                                     onChange={(e) => setForm(prev => ({ ...prev, hourlyRate: parseInt(e.target.value) || 0 }))}
-                                    className="w-full h-12 px-4 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors"
+                                    readOnly={!isCurrentlyEditing}
+                                    className={cn(
+                                        "w-full h-12 px-4 rounded-xl border outline-none font-medium transition-colors",
+                                        isCurrentlyEditing
+                                            ? "bg-background border-border focus:border-primary/50"
+                                            : "bg-muted/50 border-border cursor-not-allowed"
+                                    )}
                                 />
                             </div>
                         </div>
@@ -408,28 +484,32 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                                 {form.skills.map((s, i) => (
                                     <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-sm font-medium text-primary">
                                         {s}
-                                        <button onClick={() => removeSkill(i)} className="hover:text-rose-500 transition-colors">
-                                            <X className="w-3 h-3" />
-                                        </button>
+                                        {isCurrentlyEditing && (
+                                            <button onClick={() => removeSkill(i)} className="hover:text-rose-500 transition-colors">
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        )}
                                     </span>
                                 ))}
                             </div>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={newSkill}
-                                    onChange={(e) => setNewSkill(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }}
-                                    className="flex-1 h-12 px-4 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors"
-                                    placeholder="Add a skill and press Enter"
-                                />
-                                <button
-                                    onClick={addSkill}
-                                    className="px-4 rounded-xl bg-primary/10 border border-primary/20 text-primary font-bold hover:bg-primary/20 transition-colors"
-                                >
-                                    Add
-                                </button>
-                            </div>
+                            {isCurrentlyEditing && (
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={newSkill}
+                                        onChange={(e) => setNewSkill(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }}
+                                        className="flex-1 h-12 px-4 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors"
+                                        placeholder="Add a skill and press Enter"
+                                    />
+                                    <button
+                                        onClick={addSkill}
+                                        className="px-4 rounded-xl bg-primary/10 border border-primary/20 text-primary font-bold hover:bg-primary/20 transition-colors"
+                                    >
+                                        Add
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div>
@@ -441,7 +521,7 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                                 {form.languages.map((l, i) => (
                                     <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-sm font-medium text-emerald-600 dark:text-emerald-400">
                                         {l}
-                                        {form.languages.length > 1 && (
+                                        {isCurrentlyEditing && form.languages.length > 1 && (
                                             <button onClick={() => removeLang(i)} className="hover:text-rose-500 transition-colors">
                                                 <X className="w-3 h-3" />
                                             </button>
@@ -449,22 +529,24 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                                     </span>
                                 ))}
                             </div>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={newLang}
-                                    onChange={(e) => setNewLang(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLang(); } }}
-                                    className="flex-1 h-12 px-4 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors"
-                                    placeholder="Add a language"
-                                />
-                                <button
-                                    onClick={addLang}
-                                    className="px-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold hover:bg-emerald-500/20 transition-colors"
-                                >
-                                    Add
-                                </button>
-                            </div>
+                            {isCurrentlyEditing && (
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={newLang}
+                                        onChange={(e) => setNewLang(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLang(); } }}
+                                        className="flex-1 h-12 px-4 rounded-xl bg-background border border-border focus:border-primary/50 outline-none font-medium transition-colors"
+                                        placeholder="Add a language"
+                                    />
+                                    <button
+                                        onClick={addLang}
+                                        className="px-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold hover:bg-emerald-500/20 transition-colors"
+                                    >
+                                        Add
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div>
@@ -483,7 +565,8 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                                                 <input
                                                     type="checkbox"
                                                     checked={isEnabled}
-                                                    onChange={() => toggleDay(day)}
+                                                    onChange={() => isCurrentlyEditing && toggleDay(day)}
+                                                    disabled={!isCurrentlyEditing}
                                                     className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
                                                 />
                                                 <span className={`text-sm font-bold capitalize ${isEnabled ? 'text-foreground' : 'text-muted-foreground'}`}>
@@ -496,14 +579,26 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
                                                         type="time"
                                                         value={slot?.startTime || '09:00'}
                                                         onChange={(e) => updateSlot(day, 'startTime', e.target.value)}
-                                                        className="h-9 px-2 rounded-lg bg-background border border-border text-sm font-medium outline-none focus:border-primary/50"
+                                                        disabled={!isCurrentlyEditing}
+                                                        className={cn(
+                                                            "h-9 px-2 rounded-lg border text-sm font-medium outline-none",
+                                                            isCurrentlyEditing
+                                                                ? "bg-background border-border focus:border-primary/50"
+                                                                : "bg-muted/50 border-border cursor-not-allowed"
+                                                        )}
                                                     />
                                                     <span className="text-muted-foreground text-xs">to</span>
                                                     <input
                                                         type="time"
                                                         value={slot?.endTime || '17:00'}
                                                         onChange={(e) => updateSlot(day, 'endTime', e.target.value)}
-                                                        className="h-9 px-2 rounded-lg bg-background border border-border text-sm font-medium outline-none focus:border-primary/50"
+                                                        disabled={!isCurrentlyEditing}
+                                                        className={cn(
+                                                            "h-9 px-2 rounded-lg border text-sm font-medium outline-none",
+                                                            isCurrentlyEditing
+                                                                ? "bg-background border-border focus:border-primary/50"
+                                                                : "bg-muted/50 border-border cursor-not-allowed"
+                                                        )}
                                                     />
                                                 </div>
                                             ) : (

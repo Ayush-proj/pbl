@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createBooking, getMentorSlots } from '../services/api';
+import useMentorStore from '../store/mentorStore';
 import {
     X,
     Calendar as CalendarIcon,
@@ -32,10 +33,16 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
     const [sessionType, setSessionType] = useState(initialType); // 'demo' or 'paid'
     const [isLoadingSlots, setIsLoadingSlots] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [hasExistingDemo, setHasExistingDemo] = useState(false);
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(false);
     const [showScrollTopShadow, setShowScrollTopShadow] = useState(false);
     const [showScrollBottomShadow, setShowScrollBottomShadow] = useState(true);
+    const [serverMessage, setServerMessage] = useState(null);
+    
+    // Full mentor data with availability
+    const [fullMentor, setFullMentor] = useState(null);
+    const { setMentor, getMentor } = useMentorStore();
 
     const contentRef = useRef(null);
     const slotsRef = useRef(null);
@@ -48,6 +55,8 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
             setSelectedSlot(null);
             setSuccess(false);
             setError(null);
+            setServerMessage(null);
+            setHasExistingDemo(false);
             setAvailableSlots([]);
             setIsLoadingSlots(true);
             setIsSubmitting(false);
@@ -75,6 +84,43 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
 
     const [availableSlots, setAvailableSlots] = useState([]);
     const [dayAvailability, setDayAvailability] = useState(null);
+    const [currentDay, setCurrentDay] = useState(null);
+    const [allSlotsCount, setAllSlotsCount] = useState(0);
+    const [statusMessage, setStatusMessage] = useState(null);
+    const [isToday, setIsToday] = useState(false);
+    const [isPastDate, setIsPastDate] = useState(false);
+
+    // Fetch FULL mentor profile with availability EVERY time modal opens
+    useEffect(() => {
+        if (!isOpen || !mentor?._id) {
+            setFullMentor(null);
+            return;
+        }
+        
+        const mentorId = mentor._id || mentor.id;
+        
+        // ALWAYS fetch fresh data when modal opens - no cache
+        const fetchMentorProfile = async () => {
+            setIsLoadingSlots(true);
+            try {
+                const { getMentorProfile } = await import('../services/api');
+                const res = await getMentorProfile();
+                if (res.data?.mentor) {
+                    const fullData = res.data.mentor;
+                    setFullMentor(fullData);
+                    // Update cache
+                    setMentor(mentorId, fullData);
+                } else {
+                    setFullMentor(mentor);
+                }
+            } catch (err) {
+                console.log('Using passed mentor data');
+                setFullMentor(mentor);
+            }
+        };
+        
+        fetchMentorProfile();
+    }, [isOpen, mentor?._id, mentor?.id]);
 
     useEffect(() => {
         if (!isOpen || !mentor?._id) return;
@@ -83,13 +129,20 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
         setIsLoadingSlots(true);
         setSelectedSlot(null);
         setError(null);
+        setServerMessage(null);
+        setStatusMessage(null);
 
         const dateStr = selectedDate.toISOString().split('T')[0];
         const mentorId = mentor._id || mentor.id;
+        
+        console.log('📡 Fetching slots for mentor:', mentorId, 'date:', dateStr, 'sessionType:', sessionType);
+        console.log('📡 Mentor full data:', JSON.stringify(fullMentor?.availability));
 
         getMentorSlots(mentorId, { date: dateStr, sessionType })
             .then(res => {
                 if (abortController.signal.aborted) return;
+                console.log('📥 Slots API response:', res.data);
+                
                 const slots = (res.data.slots || []).map(time24 => {
                     const [h, m] = time24.split(':').map(Number);
                     const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
@@ -98,34 +151,56 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
                         id: time24,
                         time: `${String(hour12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`,
                         time24,
-                        available: true
+                        available: true,
+                        status: 'available'
                     };
                 });
+                
                 if (!abortController.signal.aborted) {
                     setAvailableSlots(slots);
                     setDayAvailability(res.data.availability || null);
+                    setCurrentDay(res.data.day || null);
+                    setHasExistingDemo(res.data.hasExistingDemo || false);
+                    setAllSlotsCount(res.data.allSlotsCount || 0);
+                    setIsToday(res.data.isToday || false);
+                    setIsPastDate(res.data.isPastDate || false);
+                    
+                    // Set appropriate message
+                    if (res.data.message) {
+                        setStatusMessage(res.data.message);
+                        setServerMessage(res.data.message);
+                    }
+                    
+                    if (res.data.hasExistingDemo && sessionType === 'demo') {
+                        const msg = 'Demo session already used with this mentor. Please select a paid session.';
+                        setStatusMessage(msg);
+                        setServerMessage(msg);
+                        setSessionType('paid');
+                    }
                 }
             })
             .catch(err => {
                 if (abortController.signal.aborted) return;
                 console.error('Failed to fetch slots:', err);
                 setAvailableSlots([]);
+                setError('Failed to load available slots');
             })
             .finally(() => {
                 if (!abortController.signal.aborted) setIsLoadingSlots(false);
             });
 
         return () => abortController.abort();
-    }, [isOpen, selectedDate, sessionType, mentor?._id, mentor?.id]);
+    }, [isOpen, selectedDate, sessionType, mentor?._id, mentor?.id, fullMentor]);
 
 
-    const isDemoTaken = mentor?.isDemoTaken || false;
+    // hasExistingDemo is fetched from server and tracked in state
 
 
     const handleBookSession = async () => {
         if (!selectedSlot) return;
         setIsSubmitting(true);
         setError(null);
+        setServerMessage(null);
 
         try {
             const slot = availableSlots.find(s => s.time === selectedSlot);
@@ -139,7 +214,7 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
                 return;
             }
 
-            await createBooking({
+            const response = await createBooking({
                 mentorId,
                 date: dateStr,
                 time: time24,
@@ -149,6 +224,9 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
 
             setIsSubmitting(false);
             setSuccess(true);
+            if (response.data.message) {
+                setServerMessage(response.data.message);
+            }
             setTimeout(() => {
                 onBookingComplete?.({
                     mentor,
@@ -214,14 +292,42 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
                         <Calendar
                             mode="single"
                             selected={selectedDate}
-                            onSelect={setSelectedDate}
-                            disabled={(date) => date < new Date() || date.getDay() === 0 || date.getDay() === 6}
+                            onSelect={(date) => {
+                                if (date) {
+                                    setSelectedDate(date);
+                                }
+                            }}
+                            disabled={(date) => {
+                                // Only block past dates and weekends
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                return date < today || date.getDay() === 0 || date.getDay() === 6;
+                            }}
+                            defaultMonth={new Date()}
                             className="bg-transparent border-none text-foreground"
                             classNames={{
                                 day_selected: "bg-[var(--electric-blue)] text-white dark:text-black font-bold shadow-[0_4px_12px_rgba(0,186,226,0.3)] dark:shadow-[0_0_20px_rgba(0,212,255,0.4)]",
                                 day_today: "text-[var(--electric-blue)] font-bold border border-[var(--electric-blue)]/20",
                             }}
                         />
+                    </div>
+                    {/* Date Info Banner */}
+                    <div className="mt-3 flex items-center justify-between px-1">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="font-medium">
+                                {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                            {selectedDate.toDateString() === new Date().toDateString() && (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
+                                    TODAY
+                                </span>
+                            )}
+                        </div>
+                        {selectedDate.toDateString() === new Date().toDateString() && (
+                            <div className="text-xs text-muted-foreground/70">
+                                Current time: {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                        )}
                     </div>
                 </section>
 
@@ -230,10 +336,36 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
                     <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                         <Clock className="w-3.5 h-3.5" />
                         2. Available Slots
+                        {currentDay && (
+                            <span className="ml-2 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
+                                {currentDay}
+                            </span>
+                        )}
                     </h3>
+                    {statusMessage && (
+                        <div className={cn(
+                            "mb-3 px-3 py-2 rounded-lg border text-xs font-medium",
+                            statusMessage.includes('booked') || statusMessage.includes('used')
+                                ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400"
+                                : "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400"
+                        )}>
+                            <Info className="w-3.5 h-3.5 inline mr-1.5" />
+                            {statusMessage}
+                        </div>
+                    )}
+                    {isToday && availableSlots.length > 0 && (
+                        <div className="mb-3 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs font-medium text-blue-600 dark:text-blue-400">
+                            <Clock className="w-3.5 h-3.5 inline mr-1.5" />
+                            Showing future slots for today. Past slots are hidden.
+                        </div>
+                    )}
                     {dayAvailability && (
                         <div className="mb-3 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                            Available: {dayAvailability.startTime} - {dayAvailability.endTime}
+                            <Clock className="w-3.5 h-3.5 inline mr-1.5" />
+                            Mentor Available: {dayAvailability.startTime} - {dayAvailability.endTime}
+                            {allSlotsCount > 0 && (
+                                <span className="ml-2 opacity-70">({allSlotsCount} total slots)</span>
+                            )}
                         </div>
                     )}
                     {isLoadingSlots ? (
@@ -243,8 +375,12 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
                             ))}
                         </div>
                     ) : availableSlots.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground font-medium text-sm bg-muted/30 dark:bg-white/5 rounded-2xl border border-border dark:border-white/5">
-                            No available slots for this date. Try another day.
+                        <div className="text-center py-8">
+                            <div className="text-muted-foreground font-medium text-sm bg-muted/30 dark:bg-white/5 rounded-2xl border border-border dark:border-white/5 p-6 mb-3">
+                                <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                No available slots for this date.
+                            </div>
+                            <p className="text-xs text-muted-foreground/70">Try selecting another date or changing session type.</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-3 gap-3">
@@ -290,11 +426,11 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <motion.button
-                            whileHover={!isDemoTaken ? { y: -4 } : {}}
-                            onClick={() => !isDemoTaken && setSessionType('demo')}
+                            whileHover={!hasExistingDemo ? { y: -4 } : {}}
+                            onClick={() => !hasExistingDemo && setSessionType('demo')}
                             className={cn(
                                 "relative p-4 rounded-[1.5rem] border text-left transition-all group overflow-hidden shadow-sm",
-                                isDemoTaken
+                                hasExistingDemo
                                     ? "bg-muted/30 dark:bg-white/5 border-border dark:border-white/5 opacity-50 cursor-not-allowed"
                                     : sessionType === 'demo'
                                         ? "bg-card dark:bg-[var(--electric-blue)]/10 border-[var(--electric-blue)] shadow-md"
@@ -311,7 +447,7 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
                                         sessionType === 'demo' ? "text-[var(--electric-blue)]" : "text-muted-foreground"
                                     )} />
                                 </div>
-                                {isDemoTaken ? (
+                                {hasExistingDemo ? (
                                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted dark:bg-white/10 text-muted-foreground">ALREADY TAKEN</span>
                                 ) : (
                                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-500">ONE-TIME ONLY</span>
@@ -323,7 +459,7 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
                                 <span>•</span>
                                 <span className="text-emerald-600 dark:text-emerald-500">FREE</span>
                             </div>
-                            {sessionType === 'demo' && !isDemoTaken && (
+                            {sessionType === 'demo' && !hasExistingDemo && (
                                 <motion.div layoutId="sessionHighlight" className="absolute inset-0 border-2 border-[var(--electric-blue)] rounded-[1.5rem]" />
                             )}
                         </motion.button>

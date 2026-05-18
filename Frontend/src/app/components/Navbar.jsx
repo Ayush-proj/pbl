@@ -4,7 +4,7 @@ import { motion } from 'motion/react';
 import useAuthStore from '../store/authStore';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 
 
 export function Navbar({ onLoginClick, onNavigate, currentView, userRole, onLogout, onNavigateTab }) {
@@ -157,6 +157,9 @@ export function Navbar({ onLoginClick, onNavigate, currentView, userRole, onLogo
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="right" className="w-[300px] sm:w-[350px]">
+                  {/* Required by Radix UI for screen reader accessibility */}
+                  <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+                  <SheetDescription className="sr-only">Mobile navigation links for GuruConnect</SheetDescription>
                   <div className="flex flex-col gap-6 mt-8">
                     <div
                       className="flex items-center gap-2 cursor-pointer"

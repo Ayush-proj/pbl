@@ -11,6 +11,33 @@ exports.createBooking = async (req, res) => {
   try {
     const { mentorId, date, time, duration, sessionType = "demo" } = req.body;
 
+    // Validate required fields
+    if (!mentorId || !date || !time) {
+      return res.status(400).json({
+        success: false,
+        message: "Mentor, date, and time are required"
+      });
+    }
+
+    // Parse time to check if it's in the future
+    const [h, m] = time.split(':').map(Number);
+    const slotMinutes = h * 60 + m;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    
+    // Check if slot is in the future (at least 15 min buffer)
+    const requestedDate = new Date(date.includes('T') ? date.split('T')[0] : date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const isToday = requestedDate.getTime() === today.getTime();
+    if (isToday && slotMinutes <= currentMinutes + 15) {
+      return res.status(400).json({
+        success: false,
+        message: "Only future slots are available"
+      });
+    }
+
     // ✅ Look up the Candidate document first
     const Candidate = require("../models/candidate");
     let candidate = await Candidate.findOne({ userId: req.user._id });
@@ -29,23 +56,79 @@ exports.createBooking = async (req, res) => {
     }
 
     const mentor = await Mentor.findById(mentorId);
-    if (!mentor)
-      return res.status(400).json({ success: false, message: "Mentor unavailable" });
+    if (!mentor) {
+      return res.status(400).json({ success: false, message: "Mentor not available" });
+    }
 
-    // REMOVED: Demo requirement for paid sessions - can book directly
+    // Check if mentor is active
+    if (mentor.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: "This mentor is currently not accepting bookings"
+      });
+    }
 
-    const existingBooking = await Booking.findOne({
+    // Check for demo session already used with this mentor
+    if (sessionType === "demo") {
+      const existingDemo = await Booking.findOne({
+        mentorId,
+        candidateId: candidate._id,
+        sessionType: "demo",
+        status: { $in: ["pending", "confirmed", "awaiting-payment", "in-progress"] }
+      });
+      
+      if (existingDemo) {
+        return res.status(400).json({
+          success: false,
+          message: "Demo session already used with this mentor"
+        });
+      }
+    }
+
+    // Check for mentor slot overlap using time comparison
+    const slotDuration = sessionType === "demo" ? 15 : (duration || 60);
+    const slotStart = slotMinutes;
+    const slotEnd = slotStart + slotDuration;
+
+    // Find existing bookings for this mentor on this date
+    const existingBookings = await Booking.find({
       mentorId,
       date,
-      time,
       status: { $in: ["pending", "confirmed", "awaiting-payment", "in-progress"] }
     });
 
-    if (existingBooking)
-      return res.status(400).json({
-        success: false,
-        message: "Slot already booked"
-      });
+    for (const b of existingBookings) {
+      const [bh, bm] = b.time.split(':').map(Number);
+      const bStart = bh * 60 + bm;
+      const bEnd = bStart + (b.duration || 60);
+      
+      if (slotStart < bEnd && slotEnd > bStart) {
+        return res.status(400).json({
+          success: false,
+          message: "This slot has already been booked"
+        });
+      }
+    }
+
+    // Check for candidate overlapping sessions
+    const candidateBookings = await Booking.find({
+      candidateId: candidate._id,
+      date,
+      status: { $in: ["pending", "confirmed", "awaiting-payment", "in-progress"] }
+    });
+
+    for (const b of candidateBookings) {
+      const [bh, bm] = b.time.split(':').map(Number);
+      const bStart = bh * 60 + bm;
+      const bEnd = bStart + (b.duration || 60);
+      
+      if (slotStart < bEnd && slotEnd > bStart) {
+        return res.status(400).json({
+          success: false,
+          message: "You have an overlapping session at this time"
+        });
+      }
+    }
 
     let amount = 0;
     let commissionAmount = 0;
@@ -86,7 +169,22 @@ exports.createBooking = async (req, res) => {
       sessionType
     });
 
-    res.status(201).json({ success: true, booking });
+    // Emit slot update to all listeners
+    emitToUser('global', 'slot_booked', {
+      mentorId,
+      date,
+      time,
+      sessionType,
+      action: 'removed'
+    });
+
+    res.status(201).json({
+      success: true,
+      booking,
+      message: sessionType === "demo" 
+        ? "Demo session booked successfully! Mentor will confirm shortly."
+        : "Booking created! Complete payment within 10 minutes."
+    });
   } catch (err) {
     console.error("Booking failed:", err);
     res.status(500).json({ success: false, message: err.message });
@@ -139,7 +237,12 @@ exports.joinSession = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.bookingId);
 
-    if (!booking || !["confirmed", "in-progress"].includes(booking.status))
+    if (!booking)
+      return res.status(404).json({ success: false, message: "Booking not found" });
+
+    // Allow joining if status is pending, confirmed, awaiting-payment, or in-progress
+    const allowedStatuses = ["pending", "confirmed", "awaiting-payment", "in-progress"];
+    if (!allowedStatuses.includes(booking.status))
       return res.status(400).json({ success: false, message: "Booking not ready to join" });
 
     const now = new Date();
@@ -152,17 +255,20 @@ exports.joinSession = async (req, res) => {
 
     // Generate WebSocket room ID (instead of Zoom/Jitsi link)
     if (!booking.meetingLink) {
-      // Create a unique room ID for WebSocket
       booking.meetingLink = `room_${booking._id}`;
     }
 
-    booking.status = "in-progress";
+    // Set to in-progress only if already confirmed, otherwise keep pending
+    if (booking.status === "confirmed" || booking.status === "in-progress") {
+      booking.status = "in-progress";
+    }
+
     await booking.save();
 
     res.json({
       success: true,
       meetingLink: booking.meetingLink,
-      isWebSocket: true // Flag to indicate WebSocket-based video
+      isWebSocket: true
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

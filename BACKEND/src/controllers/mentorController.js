@@ -27,7 +27,15 @@ exports.createMentorProfile = async (req, res, next) => {
       if (!existingProfile.location?.coordinates) {
         existingProfile.location = { type: "Point", coordinates: [0, 0] };
       }
+      
+      // Ensure availability is saved even if empty array
+      if (mentorData.availability !== undefined) {
+        existingProfile.availability = mentorData.availability;
+      }
+      
       await existingProfile.save();
+      
+      console.log('✅ Mentor profile updated, availability:', JSON.stringify(existingProfile.availability));
 
       return res.status(200).json({
         success: true,
@@ -66,6 +74,8 @@ exports.getMentorProfile = async (req, res, next) => {
         message: "Mentor profile not found"
       });
     }
+
+    console.log('📥 getMentorProfile - availability from MongoDB:', JSON.stringify(mentor.availability));
 
     res.status(200).json({
       success: true,

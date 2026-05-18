@@ -230,22 +230,35 @@ function VideoSessionRoom({ booking, userRole = 'candidate', onEnd }) {
       return;
     }
     socketRef.current = socket;
-    console.log('🔌 Setting up socket listeners for room:', roomId);
 
     // Room membership updates
     const onUsersUpdated = (data) => {
       if (data.roomId === roomId) {
         setPeerCount(data.userCount);
         console.log(`👥 Users in room: ${data.userCount}`, data.users);
+        
+        // If we have 2 users and we're not connected yet, trigger offer creation
+        if (data.userCount >= 2 && !peerConnection.current?.localDescription) {
+          setTimeout(() => {
+            if (!peerConnection.current?.localDescription) {
+              console.log('🟢 Creating offer as fallback (no offer received yet)');
+              createAndSendOffer();
+            }
+          }, 2000);
+        }
       }
     };
 
     // Server tells us to create the offer (we are the initiator)
     const onRoomReady = (data) => {
       console.log('📨 Received room:ready event:', data);
-      if (data.roomId === roomId && data.shouldCreateOffer) {
-        console.log('🟢 Room ready — I am the initiator, creating offer...');
-        createAndSendOffer();
+      if (data.roomId === roomId) {
+        if (data.shouldCreateOffer) {
+          console.log('🟢 Room ready — I am the initiator, creating offer...');
+          setTimeout(createAndSendOffer, 500);
+        } else if (data.waitingForPeer) {
+          console.log('⏳ Waiting for peer to create offer...');
+        }
       }
     };
 

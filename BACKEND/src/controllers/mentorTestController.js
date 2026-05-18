@@ -118,13 +118,15 @@ exports.submitMentorTest = async (req, res, next) => {
     if (finalScore >= 70) {
       mentor.verified = true;
       mentor.verification.passed = true;
+      // Delete session — no more testing needed once verified
+      await MentorTestSession.deleteOne({ mentorId: mentor._id });
     } else {
       mentor.verification.passed = false;
+      // Delete session so next retake generates fresh questions
+      await MentorTestSession.deleteOne({ mentorId: mentor._id });
     }
 
     await mentor.save();
-
-    await MentorTestSession.deleteOne({ mentorId: mentor._id });
 
     res.status(200).json({
       success: true,

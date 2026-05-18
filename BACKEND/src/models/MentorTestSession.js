@@ -17,7 +17,7 @@ const mentorTestSessionSchema = new mongoose.Schema(
     createdAt: {
       type: Date,
       default: Date.now,
-      expires: 1800 // 🔥 auto-delete after 30 minutes
+      expires: 7200 // auto-delete after 2 hours
     }
   },
   { timestamps: false }

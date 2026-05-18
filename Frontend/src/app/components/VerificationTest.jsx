@@ -31,14 +31,13 @@ export function VerificationTest({ questions, duration, onSubmit, onExit }) {
 
     // Fullscreen logic
     const enterFullscreen = () => {
-        if (containerRef.current) {
-            if (containerRef.current.requestFullscreen) {
-                containerRef.current.requestFullscreen();
-            } else if (containerRef.current.webkitRequestFullscreen) {
-                containerRef.current.webkitRequestFullscreen();
-            } else if (containerRef.current.msRequestFullscreen) {
-                containerRef.current.msRequestFullscreen();
-            }
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) {
+            elem.requestFullscreen().catch(() => {});
+        } else if (elem.webkitRequestFullscreen) {
+            elem.webkitRequestFullscreen();
+        } else if (elem.msRequestFullscreen) {
+            elem.msRequestFullscreen();
         }
     };
 
@@ -54,11 +53,9 @@ export function VerificationTest({ questions, duration, onSubmit, onExit }) {
         }
     };
 
-    // Attempt fullscreen on mount (might be blocked by browser if not triggered by user)
-    useEffect(() => {
-        enterFullscreen();
-        return () => exitFullscreen();
-    }, []);
+    // NOTE: Fullscreen can only be triggered by a direct user gesture (browser security policy).
+    // We do NOT auto-request fullscreen on mount. Instead it is triggered on the
+    // "Restore Fullscreen" button click inside the OverlayWarning.
 
     // Timer
     useEffect(() => {

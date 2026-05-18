@@ -59,6 +59,7 @@ export default function App() {
   }); // 'home', 'about', 'contact', 'dashboard', 'mentor-profile', 'verification-entry', 'verification-test', 'verification-result'
   const [userRole, setUserRole] = useState(currentUser?.role || 'candidate');
   const [selectedMentor, setSelectedMentor] = useState(null);
+  const [fullMentorData, setFullMentorData] = useState(null);
   const [isMentorModalOpen, setIsMentorModalOpen] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [isCandidateModalOpen, setIsCandidateModalOpen] = useState(false);
@@ -150,6 +151,8 @@ export default function App() {
     useAuthStore.getState().setUser(mergedUser);
 
     try {
+      console.log('📤 Saving profile with availability:', JSON.stringify(updatedProfile.availability));
+      
       const response = await createMentorProfile({
         name: updatedProfile.name,
         title: updatedProfile.title,
@@ -164,8 +167,11 @@ export default function App() {
       });
 
       const savedProfile = response.data.mentor;
+      console.log('✅ Saved profile from MongoDB:', JSON.stringify(savedProfile.availability));
+      
       useAuthStore.getState().setMentorProfile(savedProfile);
       setSelectedMentor(savedProfile);
+      setFullMentorData(savedProfile);
       toast.success('Profile saved successfully');
       return savedProfile;
     } catch (error) {
@@ -229,13 +235,37 @@ export default function App() {
     setCurrentView(view);
   };
 
-  const handleMentorClick = (mentor) => {
+  const handleMentorClick = async (mentor) => {
     setSelectedMentor(mentor);
+    // Fetch full mentor data with availability
+    try {
+      const { getMentorProfile } = await import('./services/api');
+      const res = await getMentorProfile();
+      if (res.data?.mentor) {
+        setFullMentorData(res.data.mentor);
+      } else {
+        setFullMentorData(mentor);
+      }
+    } catch {
+      setFullMentorData(mentor);
+    }
     setIsMentorModalOpen(true);
   };
 
-  const handleBookDemo = (mentor, type = 'paid') => {
+  const handleBookDemo = async (mentor, type = 'paid') => {
     setSelectedMentor(mentor);
+    // Fetch full mentor data with availability
+    try {
+      const { getMentorProfile } = await import('./services/api');
+      const res = await getMentorProfile();
+      if (res.data?.mentor) {
+        setFullMentorData(res.data.mentor);
+      } else {
+        setFullMentorData(mentor);
+      }
+    } catch {
+      setFullMentorData(mentor);
+    }
     setBookingType(type);
     setIsBookingModalOpen(true);
   };
@@ -540,27 +570,47 @@ export default function App() {
         />
 
         <MentorProfileModal
-          mentor={selectedMentor}
+          mentor={fullMentorData || selectedMentor}
           isOpen={isMentorModalOpen}
-          onClose={() => setIsMentorModalOpen(false)}
-          onBookDemo={(mentor) => {
+          onClose={() => {
+            setIsMentorModalOpen(false);
+            setFullMentorData(null);
+          }}
+          onBookDemo={async (mentor) => {
             setIsMentorModalOpen(false);
             setSelectedMentor(mentor);
+            try {
+              const { getMentorProfile } = await import('./services/api');
+              const res = await getMentorProfile();
+              setFullMentorData(res.data?.mentor || mentor);
+            } catch {
+              setFullMentorData(mentor);
+            }
             setBookingType('demo');
             setIsBookingModalOpen(true);
           }}
-          onBookPaid={(mentor) => {
+          onBookPaid={async (mentor) => {
             setIsMentorModalOpen(false);
             setSelectedMentor(mentor);
+            try {
+              const { getMentorProfile } = await import('./services/api');
+              const res = await getMentorProfile();
+              setFullMentorData(res.data?.mentor || mentor);
+            } catch {
+              setFullMentorData(mentor);
+            }
             setBookingType('paid');
             setIsBookingModalOpen(true);
           }}
         />
 
         <BookingModal
-          mentor={selectedMentor}
+          mentor={fullMentorData || selectedMentor}
           isOpen={isBookingModalOpen}
-          onClose={() => setIsBookingModalOpen(false)}
+          onClose={() => {
+            setIsBookingModalOpen(false);
+            setFullMentorData(null);
+          }}
           initialType={bookingType}
           onBookingComplete={(data) => {
             console.log("Booking Complete:", data);
