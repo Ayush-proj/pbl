@@ -41,6 +41,13 @@ app.use("/api/chat", require("./routes/chat.routes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 
 // --------------------
+// 404 Handler
+// --------------------
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: "Route not found" });
+});
+
+// --------------------
 // Global Error Handler (LAST)
 // --------------------
 app.use(require("./middlewares/error.middleware"));
