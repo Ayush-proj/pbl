@@ -3,65 +3,44 @@ const model = require("./geminiClient");
 const generateMentorTest = async (mentorData) => {
   const { skills, title, bio } = mentorData;
   
-  const skillsList = skills?.length ? skills.join(", ") : "general programming";
+  const skillsList = skills?.length ? skills.slice(0, 5).join(", ") : "general programming";
   const roleContext = title || bio || "Software Developer";
 
-  const prompt = `
-You are a strict technical interviewer evaluating a mentor applying for the role of "${roleContext}".
+  const prompt = `Generate 5 MCQ for ${roleContext} (skills: ${skillsList}). 
 
-The mentor has listed these skills: ${skillsList}
+Format: {"mcq":[{"id":"q1","skill":"skillname","question":"?","options":["A","B","C","D"],"correctIndex":0}]}
 
-Generate exactly 5 MCQ questions to verify their expertise in these skills.
-
-Rules:
-- Questions must be directly related to their skills: ${skillsList}
-- Each MCQ must have exactly 4 options labeled A, B, C, D
-- Include correctIndex (0=A, 1=B, 2=C, 3=D)
-- Medium to hard difficulty level
-- Each question should test practical/deep knowledge, not trivial facts
-- NO explanations or extra text
-- Return ONLY valid JSON with no markdown
-
-JSON format:
-{
-  "mcq": [
-    {
-      "id": "q1",
-      "skill": "primary skill this question tests",
-      "question": "clear technical question",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctIndex": 0
-    }
-  ]
-}
-`;
+Rules: 4 options each, correctIndex 0-3, medium difficulty, JSON only, no extra text.`;
 
   try {
     const result = await model.generateContent(prompt);
     const response = result.response.text();
 
-    const cleanJSON = response.replace(/```json|```/g, "").trim();
+    let cleanJSON = response.replace(/```json|```/g, "").replace(/^[^{]*\{/, "{").replace(/\}[^}]*$/, "}").trim();
+    
     const parsed = JSON.parse(cleanJSON);
 
     if (!parsed.mcq || !Array.isArray(parsed.mcq) || parsed.mcq.length === 0) {
       throw new Error("Invalid test format from Gemini");
     }
 
+    const mcqWithIds = parsed.mcq.slice(0, 5).map((q, i) => ({
+      id: `q${i + 1}`,
+      skill: q.skill || skillsList.split(",")[0],
+      question: q.question || "",
+      options: q.options?.slice(0, 4) || ["A", "B", "C", "D"],
+      correctIndex: typeof q.correctIndex === "number" ? q.correctIndex : 0
+    }));
+
     return { 
-      mcq: parsed.mcq.slice(0, 5),
+      mcq: mcqWithIds,
       skillFocus: skills,
       roleContext: roleContext,
       generatedAt: new Date().toISOString()
     };
   } catch (error) {
     console.error("Gemini Test Generation Error:", error.message);
-    
-    if (error.status === 429 || error.message?.includes('rate')) {
-      console.log("⚠️ Gemini rate limit hit, using fallback test");
-    } else {
-      console.warn("⚠️ Gemini failed, using fallback test");
-    }
-    
+    console.log("⚠️ Using fallback test immediately");
     return generateFallbackTest(skillsList, roleContext);
   }
 };

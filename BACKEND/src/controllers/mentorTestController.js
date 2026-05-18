@@ -20,31 +20,45 @@ exports.getMentorTest = async (req, res, next) => {
       });
     }
 
+    const existingSession = await MentorTestSession.findOne({ mentorId: mentor._id });
+    
     let test;
     let usedFallback = false;
-    
-    try {
-      test = await generateMentorTest({
-        skills: mentor.skills,
-        title: mentor.title,
-        bio: mentor.bio
-      });
-      usedFallback = test.isFallback || false;
-    } catch (geminiErr) {
-      console.warn("Gemini test generation failed:", geminiErr.message);
-      test = await generateMentorTest({
-        skills: mentor.skills,
-        title: mentor.title,
-        bio: mentor.bio
-      });
-      usedFallback = true;
-    }
 
-    await MentorTestSession.findOneAndUpdate(
-      { mentorId: mentor._id },
-      { test },
-      { upsert: true }
-    );
+    if (existingSession && existingSession.test && existingSession.test.mcq?.length >= 5) {
+      test = existingSession.test;
+      usedFallback = test.isFallback || false;
+      console.log("♻️ Using cached test session");
+    } else {
+      try {
+        test = await generateMentorTest({
+          skills: mentor.skills,
+          title: mentor.title,
+          bio: mentor.bio
+        });
+        usedFallback = test.isFallback || false;
+      } catch (geminiErr) {
+        console.warn("Gemini test generation failed:", geminiErr.message);
+        
+        if (existingSession?.test?.mcq?.length >= 5) {
+          test = existingSession.test;
+          usedFallback = test.isFallback || true;
+        } else {
+          test = await generateMentorTest({
+            skills: mentor.skills,
+            title: mentor.title,
+            bio: mentor.bio
+          });
+          usedFallback = true;
+        }
+      }
+
+      await MentorTestSession.findOneAndUpdate(
+        { mentorId: mentor._id },
+        { test },
+        { upsert: true }
+      );
+    }
 
     const safeMCQ = test.mcq.map(({ correctIndex, ...q }) => q);
 

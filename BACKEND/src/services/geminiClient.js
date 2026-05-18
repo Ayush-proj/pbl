@@ -2,7 +2,38 @@
 
 let model;
 let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 1000; // 1 second between requests
+const MIN_REQUEST_INTERVAL = 2000;
+const MAX_RETRIES = 3;
+const BASE_DELAY = 2000;
+
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function retryWithBackoff(fn, retries = MAX_RETRIES) {
+  let lastError;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const errorStr = error.message?.toLowerCase() || "";
+      
+      if (errorStr.includes("429") || errorStr.includes("rate limit") || errorStr.includes("quota")) {
+        const delay = BASE_DELAY * Math.pow(2, i);
+        console.log(`⏳ Rate limited. Retrying in ${delay/1000}s... (attempt ${i+1}/${retries})`);
+        await sleep(delay);
+      } else if (errorStr.includes("503") || errorStr.includes("unavailable")) {
+        const delay = BASE_DELAY * Math.pow(2, i);
+        console.log(`⏳ Service unavailable. Retrying in ${delay/1000}s... (attempt ${i+1}/${retries})`);
+        await sleep(delay);
+      } else {
+        throw error;
+      }
+    }
+  }
+  throw lastError;
+}
 
 if (process.env.GEMINI_API_KEY) {
   const { GoogleGenerativeAI } = require("@google/generative-ai");
@@ -14,27 +45,33 @@ if (process.env.GEMINI_API_KEY) {
       const timeSinceLastRequest = now - lastRequestTime;
       
       if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
-        await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest));
+        await sleep(MIN_REQUEST_INTERVAL - timeSinceLastRequest);
       }
       
       lastRequestTime = Date.now();
       
-      try {
-        const result = await genAI.getGenerativeModel({ model: "gemini-2.0-flash" }).generateContent(prompt);
-        return result;
-      } catch (error) {
-        if (error.status === 429) {
-          console.log("⚠️ Gemini rate limited, waiting 35 seconds...");
-          await new Promise(resolve => setTimeout(resolve, 35000));
-          const result = await genAI.getGenerativeModel({ model: "gemini-2.0-flash" }).generateContent(prompt);
+      return retryWithBackoff(async () => {
+        try {
+          const result = await genAI.getGenerativeModel({ 
+            model: "gemini-2.0-flash",
+            generationConfig: {
+              maxOutputTokens: 2048,
+              temperature: 0.7
+            }
+          }).generateContent(prompt);
           return result;
+        } catch (error) {
+          const errorStr = error.message?.toLowerCase() || "";
+          if (errorStr.includes("429") || errorStr.includes("quota") || errorStr.includes("rate limit")) {
+            throw new Error("RATE_LIMIT");
+          }
+          throw error;
         }
-        throw error;
-      }
+      });
     }
   };
   
-  console.log("🤖 AI Client: Using Google Gemini API with rate limiting");
+  console.log("🤖 AI Client: Using Google Gemini API with retry logic");
 } else {
   const OLLAMA_URL = "http://localhost:11434/api/generate";
   const MODEL = "mistral";
