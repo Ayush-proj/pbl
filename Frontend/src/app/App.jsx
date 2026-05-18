@@ -269,13 +269,18 @@ export default function App() {
       }));
 
       setCurrentQuestions(formattedQuestions);
-      setVerificationStatus('in-progress');
-      setCurrentView('verification-test');
+      setVerificationStatus('not-started');
+      setCurrentView('verification-entry');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to load test');
     } finally {
       setTestLoading(false);
     }
+  };
+
+  const handleActualTestStart = () => {
+    setVerificationStatus('in-progress');
+    setCurrentView('verification-test');
   };
 
 
@@ -437,7 +442,7 @@ export default function App() {
 
           ) : currentView === 'verification-entry' ? (
             <VerificationEntry
-              onStartTest={handleStartTest}
+              onStartTest={handleActualTestStart}
               verificationStatus={verificationStatus}
               attempts={testAttempts}
               maxAttempts={MAX_ATTEMPTS}
