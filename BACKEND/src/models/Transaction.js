@@ -20,7 +20,29 @@ const transactionSchema = new mongoose.Schema(
 
     amount: Number,
 
-    description: String
+    description: String,
+
+    paymentMethod: {
+      type: String,
+      default: "razorpay"
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "completed", "failed", "not-required"],
+      default: "pending"
+    },
+
+    status: {
+      type: String,
+      enum: ["pending", "completed", "failed"],
+      default: "pending"
+    },
+
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
   },
   { timestamps: true }
 );
