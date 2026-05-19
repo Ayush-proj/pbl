@@ -1,6 +1,7 @@
 const Mentor = require("../models/Mentor");
 const generateMentorTest = require("../services/geminiTest.service");
 const MentorTestSession = require("../models/MentorTestSession");
+const { MAX_TEST_ATTEMPTS } = require("../config/constants");
 
 exports.getMentorTest = async (req, res, next) => {
   try {
@@ -17,6 +18,16 @@ exports.getMentorTest = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: "Mentor already verified"
+      });
+    }
+
+    if (mentor.verification.attempts >= MAX_TEST_ATTEMPTS) {
+      return res.status(403).json({
+        success: false,
+        message: "Maximum test attempts exceeded. You have used all 3 attempts.",
+        attempts: mentor.verification.attempts,
+        maxAttempts: MAX_TEST_ATTEMPTS,
+        attemptsRemaining: 0
       });
     }
 
@@ -69,7 +80,9 @@ exports.getMentorTest = async (req, res, next) => {
         timeLimit: 600,
         skills: mentor.skills,
         usedFallback
-      }
+      },
+      attempts: mentor.verification.attempts,
+      maxAttempts: MAX_TEST_ATTEMPTS
     });
   } catch (error) {
     next(error);
@@ -133,13 +146,14 @@ exports.submitMentorTest = async (req, res, next) => {
       verified: mentor.verified,
       score: Math.round(finalScore),
       attempts: mentor.verification.attempts,
+      maxAttempts: MAX_TEST_ATTEMPTS,
       passedSkills: storedTest.mcq.filter((q, i) => {
         const ans = mcqAnswers.find(a => a.id === q.id);
         return ans && ans.answer === q.correctIndex;
       }).map(q => q.skill),
       message: mentor.verified
         ? "Mentor verified successfully"
-        : "Test failed. You can retry later."
+        : `Test failed. You have ${MAX_TEST_ATTEMPTS - mentor.verification.attempts} attempt(s) remaining.`
     });
   } catch (error) {
     next(error);

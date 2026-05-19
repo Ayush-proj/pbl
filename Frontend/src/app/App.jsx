@@ -130,7 +130,7 @@ export default function App() {
   const [testResults, setTestResults] = useState(null);
   const [testAttempts, setTestAttempts] = useState(0);
   const [testTimeLimit, setTestTimeLimit] = useState(600);
-  const MAX_ATTEMPTS = Infinity;
+  const MAX_ATTEMPTS = 3;
 
   const handleAuthSuccess = (role) => {
     setUserRole(role);
