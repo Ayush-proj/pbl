@@ -137,7 +137,7 @@ export function VerificationEntry({ onStartTest, verificationStatus = 'not-start
                                 className="text-sm font-bold text-muted-foreground"
                             >
                                 {maxAttempts === Infinity ? (
-                                    <span className="text-primary">Unlimited attempts</span>
+                                    <span className="text-primary">3 attempts Allowed</span>
                                 ) : (
                                     <><span className="text-primary">{remainingAttempts}</span> of <span className="text-primary">{maxAttempts}</span> attempts remaining</>
                                 )}
