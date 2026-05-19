@@ -29,6 +29,14 @@ export function VerificationTest({ questions, duration, onSubmit, onExit }) {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const containerRef = useRef(null);
 
+    // Auto-trigger fullscreen on mount
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            enterFullscreen();
+        }, 500);
+        return () => clearTimeout(timer);
+    }, []);
+
     // Fullscreen logic
     const enterFullscreen = () => {
         const elem = document.documentElement;

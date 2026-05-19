@@ -300,13 +300,22 @@ export default function App() {
       setVerificationStatus('not-started');
       setCurrentView('verification-entry');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to load test');
+      if (err.response?.status === 403) {
+        setVerificationStatus('permanently-rejected');
+        toast.error(err.response?.data?.message || 'Maximum attempts exceeded');
+      } else {
+        toast.error(err.response?.data?.message || 'Failed to load test');
+      }
     } finally {
       setTestLoading(false);
     }
   };
 
   const handleActualTestStart = () => {
+    if (testAttempts >= MAX_ATTEMPTS) {
+      toast.error('You have exceeded the maximum 3 attempts. You can no longer take the verification test.');
+      return;
+    }
     setVerificationStatus('in-progress');
     setCurrentView('verification-test');
   };
@@ -347,7 +356,12 @@ export default function App() {
           useAuthStore.getState().setMentorProfile({ ...currentMentorP, verified: true });
         }
       } else {
-        setVerificationStatus('rejected');
+        if (newAttemptCount >= MAX_ATTEMPTS) {
+          setVerificationStatus('permanently-rejected');
+          toast.error('You have used all 3 attempts. You can no longer take the verification test.');
+        } else {
+          setVerificationStatus('rejected');
+        }
       }
 
       setCurrentView('verification-result');
