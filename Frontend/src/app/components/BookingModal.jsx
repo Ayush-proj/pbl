@@ -298,10 +298,11 @@ export function BookingModal({ mentor, isOpen, onClose, onBookingComplete, initi
                                 }
                             }}
                             disabled={(date) => {
-                                // Only block past dates and weekends
+                                // Only block past dates - show all future days including weekends
+                                // Backend will handle mentor's availability for each day
                                 const today = new Date();
                                 today.setHours(0, 0, 0, 0);
-                                return date < today || date.getDay() === 0 || date.getDay() === 6;
+                                return date < today;
                             }}
                             defaultMonth={new Date()}
                             className="bg-transparent border-none text-foreground"
