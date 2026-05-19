@@ -209,14 +209,17 @@ export function MentorProfile({ mentor, onBack, isOwnProfile, onSaveProfile, sta
         }
         setSaving(true);
         try {
+            // Save ALL availability including disabled days so disabled status persists
             const availabilityForBackend = form.availability
-                .filter(a => a.enabled)
-                .map(({ day, startTime, endTime }) => ({ day, startTime, endTime }));
+                .map(({ day, startTime, endTime, enabled }) => ({ day, startTime, endTime, enabled }));
             const formData = { ...form, availability: availabilityForBackend };
             const savedProfile = await onSaveProfile(formData);
             // Update mentorStore with new availability
             useMentorStore.getState().setMentor(savedProfile._id, savedProfile);
+            // Update authStore with fresh data
+            useAuthStore.getState().setMentorProfile(savedProfile);
             useProfileEditStore.getState().stopEditing();
+            toast.success('Profile saved successfully');
         } catch (err) {
             // Error already shown in App.jsx
         } finally {
